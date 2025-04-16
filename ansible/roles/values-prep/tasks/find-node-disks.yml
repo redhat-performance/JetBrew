@@ -1,0 +1,25 @@
+---
+- name: run lsblk on each nodes
+  vars: 
+    ip: "{{ lookup('vars', 'node_' ~ item ~ '_ip') }}"
+  shell: |
+    ssh core@{{ ip }} \
+        "lsblk -J -o NAME,TYPE,MOUNTPOINT | jq -r '
+          .blockdevices[] 
+          | select(.type == \"disk\") 
+          | select((.children // []) | all(.mountpoint != \"/boot\")) 
+          | \"/dev/\" + .name'"
+  register: blk_outputs
+  loop: "{{ range(0,3) | list }}"
+
+- name: Extract device lists
+  set_fact:
+    node_disks_list: "{{ blk_outputs.results | map(attribute='stdout_lines') | list }}"
+
+- name: Find common devices accross nodes
+  set_fact:
+    common_disks: "{{ node_disks_list[0] | intersect(node_disks_list[1]) | intersect(node_disks_list[2]) }}"
+
+- name: common disks
+  debug:
+    msg: "{{ common_disks }}"

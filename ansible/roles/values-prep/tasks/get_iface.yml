@@ -1,0 +1,15 @@
+---
+- name: Get interface for mac {{ item[0] }}
+  shell: >
+    ssh core@{{ node_0_ip }} "
+    ip -o link |
+    grep -i {{ item[0] }} |
+    awk -F': ' '{print \$2}' |
+    grep -v '[.@]'
+    "
+  register: iface
+  failed_when: iface.rc != 0 and iface.stdout == ""
+
+- name: set iface to fact
+  set_fact:
+    "{{ 'iface_' ~ item[1] }}": "{{ iface.stdout }}"

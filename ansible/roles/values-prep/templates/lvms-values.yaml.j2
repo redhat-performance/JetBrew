@@ -1,0 +1,13 @@
+---
+# local-config: referenced, but not emitted by kustomize
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: lvms-values
+  annotations:
+    config.kubernetes.io/local-config: "true"
+data:
+  paths:
+{% for path in common_disks %}
+    - {{ path }}
+{% endfor %}

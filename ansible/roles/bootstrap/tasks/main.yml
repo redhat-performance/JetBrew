@@ -1,0 +1,25 @@
+---
+- name: clone architecture repo
+  git:
+    repo: https://github.com/masco/architecture.git
+    dest: "{{ dt_path }}"
+    version: bm-ocp
+    force: yes
+
+- name: download kustomize lib
+  shell:
+    curl -s "https://raw.githubusercontent.com/kubernetes-sigs/kustomize/master/hack/install_kustomize.sh"  | bash
+
+- name: move the kustomize to usr-bin
+  shell:
+    mv kustomize /usr/bin/.
+
+- name: download ocp_inventry file
+  uri:
+    url: "https://wiki.scalelab.redhat.com/instack/cloud{{ cloud }}_ocpinventory.json"
+    return_content: true
+  register: ocpinventory
+
+- name: set fact ocp inventory
+  set_fact:
+    ocp_inventry: "{{ ocpinventory }}"

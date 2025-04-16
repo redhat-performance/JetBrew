@@ -1,0 +1,8 @@
+- hosts: localhost
+  gather_facts: false
+  roles:
+    - bootstrap
+    - values-prep
+    - lvms
+    - common-osp
+    - controlplane

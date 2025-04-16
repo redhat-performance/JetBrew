@@ -1,0 +1,112 @@
+- name: create olm CRs
+  shell: |
+    oc apply -k {{ dt_path }}/examples/common/olm/
+
+- name: Wait for openstack-controller pod to appear
+  ansible.builtin.shell: |
+    while ! (oc get pod --no-headers=true -l openstack.org/operator-name=openstack-controller -n openstack-operators | grep "controller-operator"); do sleep 10; done
+
+- name: Wait for openstack-controller pod to be Ready
+  ansible.builtin.shell: |
+    oc wait pod -n openstack-operators --for=condition=Ready -l openstack.org/operator-name=openstack-controller --timeout=300s
+
+- name: Wait for cert-manager-operator pod to appear
+  ansible.builtin.shell: |
+    while ! (oc get pod --no-headers=true -l name=cert-manager-operator -n cert-manager-operator | grep "cert-manager-operator"); do sleep 10; done
+
+- name: Wait for cert-manager-operator pod to be Ready
+  ansible.builtin.shell: |
+    oc wait pod -n cert-manager-operator --for=condition=Ready -l name=cert-manager-operator --timeout=300s
+
+- name: Wait for cert-manager-cainjector pod to appear
+  ansible.builtin.shell: |
+    while ! (oc get pod --no-headers=true -l app=cainjector -n cert-manager | grep "cert-manager-cainjector"); do sleep 10; done
+
+- name: Wait for cert-manager-cainjector pod to be Ready
+  ansible.builtin.shell: |
+    oc wait pod -n cert-manager -l app=cainjector --for=condition=Ready --timeout=300s
+
+- name: Wait for cert-manager-webhook pod to appear
+  ansible.builtin.shell: |
+    while ! (oc get pod --no-headers=true -l app=webhook -n cert-manager | grep "cert-manager-webhook"); do sleep 10; done
+
+- name: Wait for cert-manager-webhook pod to be Ready
+  ansible.builtin.shell: |
+    oc wait pod -n cert-manager -l app=webhook --for=condition=Ready --timeout=300s
+
+- name: Wait for cert-manager pod to appear
+  ansible.builtin.shell: |
+    while ! (oc get pod --no-headers=true -l app=cert-manager -n cert-manager | grep "cert-manager"); do sleep 10; done
+
+- name: Wait for cert-manager pod to be Ready
+  ansible.builtin.shell: |
+    oc wait pod -n cert-manager -l app=cert-manager --for=condition=Ready --timeout=300s
+
+- name: Wait for metallb-operator-controller pod to appear
+  ansible.builtin.shell: |
+    timeout 300 bash -c "while ! (oc get pod --no-headers=true -l control-plane=controller-manager -n metallb-system | grep metallb-operator-controller); do sleep 10; done"
+
+- name: Wait for metallb-operator-controller pod to be Ready
+  ansible.builtin.shell: |
+    oc wait pod -n metallb-system --for=condition=Ready -l control-plane=controller-manager --timeout=300s
+
+- name: Wait for metallb-operator-webhook pod to appear
+  ansible.builtin.shell: |
+    timeout 300 bash -c "while ! (oc get pod --no-headers=true -l component=webhook-server -n metallb-system | grep metallb-operator-webhook); do sleep 10; done"
+
+- name: Wait for metallb-operator-webhook pod to be Ready
+  ansible.builtin.shell: |
+    oc wait pod -n metallb-system --for=condition=Ready -l component=webhook-server --timeout=300s
+
+- name: Wait for nmstate-operator deployment to appear
+  ansible.builtin.shell: |
+    timeout 300 bash -c "while ! (oc get deployments/nmstate-operator -n openshift-nmstate); do sleep 10; done"
+
+- name: Wait for nmstate-operator deployment to be Available
+  ansible.builtin.shell: |
+    oc wait deployments/nmstate-operator -n openshift-nmstate --for=condition=Available --timeout=300s
+
+- name: create metalLB CRs
+  shell: |
+    oc apply -k {{ dt_path }}/examples/common/metallb/
+
+- name: Wait for metallb speaker pod to appear
+  ansible.builtin.shell: |
+    timeout 300 bash -c "while ! (oc get pod --no-headers=true -l component=speaker -n metallb-system | grep speaker); do sleep 10; done"
+
+- name: Wait for metallb speaker pod to be Ready
+  ansible.builtin.shell: |
+    oc wait pod -n metallb-system -l component=speaker --for=condition=Ready --timeout=300s
+
+- name: create NMState CRs
+  shell: |
+    oc apply -k {{ dt_path }}/examples/common/nmstate/
+
+- name: Wait for nmstate-handler pod to appear
+  ansible.builtin.shell: |
+    timeout 300 bash -c "while ! (oc get pod --no-headers=true -l component=kubernetes-nmstate-handler -n openshift-nmstate | grep nmstate-handler); do sleep 10; done"
+  changed_when: false
+
+- name: Wait for nmstate-handler pod to be Ready
+  ansible.builtin.shell: |
+    oc wait pod -n openshift-nmstate -l component=kubernetes-nmstate-handler --for condition=Ready --timeout=300s
+  changed_when: false
+
+- name: Wait for nmstate-webhook deployment to appear
+  ansible.builtin.shell: |
+    timeout 300 bash -c "while ! (oc get deployments/nmstate-webhook -n openshift-nmstate); do sleep 10; done"
+  changed_when: false
+
+- name: Wait for nmstate-webhook deployment to be Available
+  ansible.builtin.shell: |
+    oc wait deployments/nmstate-webhook -n openshift-nmstate --for condition=Available --timeout=300s
+  changed_when: false
+
+- name: create openstack CRs
+  shell: |
+    oc apply -k {{ dt_path }}/examples/common/openstack/
+
+- name: wait for openstack operators to be ready
+  shell: |
+    oc wait -n openstack-operators openstack openstack --for condition=Ready --timeout=300s
+  changed_when: false

@@ -1,0 +1,52 @@
+---
+- name: get woker node names
+  shell: oc get nodes -o jsonpath='{.items[*].metadata.name}'
+  register: node_names
+
+- name: set node facts (node_*)
+  set_fact:
+    "{{ item_name }}": "{{ item }}"
+  loop: "{{ node_names.stdout.split() }}"
+  loop_control:
+    index_var: node_index
+  vars:
+    item_name: "node_{{ node_index }}"
+
+- name: get the first node macs (2,3 and 4th macs)
+  set_fact:
+    macs: "{{ ocp_inventry.json.nodes[1].mac[1:4] }}"
+ 
+- name: get the ip of the first node
+  command: >
+    oc get node {{ node_0 }} -o jsonpath='{.status.addresses[?(@.type=="InternalIP")].address}'
+  register:
+    node_0_ip
+
+- name: set node ip fact
+  set_fact:
+    node_ip : "{{ node_0_ip.stdout }}"
+
+- name: remove bad known_host entry if any
+  shell:
+    ssh-keygen -R {{ node_ip }}
+  ignore_errors: yes
+
+- name: Add node to known hosts
+  shell: ssh-keyscan -H {{ node_ip }} >> ~/.ssh/known_hosts
+  ignore_errors: yes
+
+- name: get the interface names
+  include_tasks: get_iface.yml
+  loop: "{{ macs | zip(range(macs | length)) | map('list') | list }}"
+  loop_control:
+    loop_var: item
+
+- name: Render nncp.yaml
+  template:
+    src: nncp_values.yaml.j2
+    dest: /root/test/architecture/examples/dt/perfscale/scalelab/nncp/values.yaml
+
+- name: Render service_values.yaml 
+  template:
+    src: service_values.yaml.j2
+    dest: /root/test/architecture/examples/dt/perfscale/scalelab/service-values.yaml

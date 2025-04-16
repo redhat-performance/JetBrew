@@ -1,0 +1,48 @@
+---
+- name: generate lvms yamls
+  shell:
+    kustomize build {{ dt_path }}/examples/dt/perfscale/scalelab/lvms/. | oc apply -f -
+
+- name: Wait for Namespace 'openshift-storage'
+  ansible.builtin.shell: |
+    until oc get ns openshift-storage >/dev/null 2>&1; do sleep 5; done
+  register: ns_result
+  retries: 60
+  delay: 5
+  until: ns_result.rc == 0
+
+- name: Wait for OperatorGroup 'openshift-storage-operatorgroup'
+  ansible.builtin.shell: |
+    until oc get operatorgroup openshift-storage-operatorgroup -n openshift-storage >/dev/null 2>&1; do sleep 5; done
+  register: og_result
+  retries: 60
+  delay: 5
+  until: og_result.rc == 0
+
+- name: Wait for LVMCluster 'lvmcluster' to exist
+  ansible.builtin.shell: |
+    until oc get lvmcluster lvmcluster -n openshift-storage >/dev/null 2>&1; do sleep 5; done
+  register: lvmcluster_check
+  retries: 60
+  delay: 5
+  until: lvmcluster_check.rc == 0
+
+- name: Wait for LVMCluster 'lvmcluster' to be Ready
+  ansible.builtin.shell: |
+    while [[ "$(oc get lvmcluster lvmcluster -n openshift-storage -o jsonpath={.status.ready} 2>/dev/null)" != "true" ]]; do sleep 5; done
+  async: 300
+  poll: 5
+
+- name: Wait for Subscription 'lvms'
+  ansible.builtin.shell: |
+    until oc get subscription lvms -n openshift-storage >/dev/null 2>&1; do sleep 5; done
+  register: sub_check
+  retries: 60
+  delay: 5
+  until: sub_check.rc == 0
+
+- name: Wait for LVMS operator pods to be Ready
+  ansible.builtin.shell: |
+    while [[ -z "$(oc get pods -n openshift-storage -l app.kubernetes.io/name=lvms-operator -o jsonpath={.items[*].status.containerStatuses[0].ready} 2>/dev/null)" ]]; do sleep 5; done
+  async: 300
+  poll: 5

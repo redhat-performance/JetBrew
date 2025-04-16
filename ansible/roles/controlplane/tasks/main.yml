@@ -1,0 +1,16 @@
+---
+- name: apply nncp CRs
+  shell: |
+    kustomize build {{ dt_path }}/examples/dt/perfscale/scalelab/nncp/. | oc apply -f -
+
+- name: wait for NNCPs to be available
+  shell:
+    oc wait nncp -l osp/nncm-config-type=standard --for jsonpath='{.status.conditions[0].reason}'=SuccessfullyConfigured --timeout=300s
+
+- name: apply controlplane CRs
+  shell: |
+    kustomize build {{ dt_path }}/examples/dt/perfscale/scalelab/. | oc apply -f -
+
+- name: wait for control plane to be available
+  shell: |
+    oc wait osctlplane controlplane -n openstack --for condition=Ready --timeout=600s

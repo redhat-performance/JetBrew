@@ -1,0 +1,67 @@
+---
+- name: generate lvms yamls
+  shell:
+    kustomize build {{ dt_path }}/examples/dt/perfscale/scalelab/lvms/. | oc apply -f -
+
+- name: check namespace created
+  community.kubernetes.k8s_info:
+    kind: Namespace
+    name: "openshift-storage"
+  register: ns_info
+  until: ns_info.resources | length > 0
+  retries: 60
+  delay: 5
+
+- name: wait for operator-group to create
+  community.kubernetes.k8s_info:
+    kind: OperatorGroup
+    namespace: "openshift-storage"
+    name: "openshift-storage-operatorgroup"
+  register: og_info
+  until: og_info.resources | length > 0
+  retries: 60
+  delay: 5
+
+- name: Wait for LVMCluster resource
+  community.kubernetes.k8s_info:
+    api_version: lvm.topolvm.io/v1alpha1
+    kind: LVMCluster
+    namespace: "openshift-storage"
+    name: "lvmcluster"
+  register: lvm_info
+  until: lvm_info.resources | length > 0
+  retries: 60
+  delay: 5
+
+- name: Wait for LVMCluster to be Ready
+  community.kubernetes.k8s_info:
+    api_version: lvm.topolvm.io/v1alpha1
+    kind: LVMCluster
+    namespace: "openshift-storage"
+    name: "lvmcluster"
+  register: lvm_ready
+  until: (lvm_ready.resources[0].status.ready | default(false)) == true
+  retries: 60
+  delay: 5
+
+- name: Wait for Subscription
+  community.kubernetes.k8s_info:
+    api_version: operators.coreos.com/v1alpha1
+    kind: Subscription
+    namespace: "openshift-storage"
+    name: "lvms"
+  register: sub_info
+  until: sub_info.resources | length > 0
+  retries: 60
+  delay: 5
+
+- name: Wait for LVMS operator pods to be Ready
+  community.kubernetes.k8s_info:
+    kind: Pod
+    namespace: "openshift-storage"
+    label_selectors:
+      - "app.kubernetes.io/name=lvms-operator"
+  register: lvms_pods
+  until: lvms_pods.resources | selectattr('status.containerStatuses[0].ready', 'defined') | map(attribute='status.containerStatuses[0].ready') | list | all
+  retries: 60
+  delay: 5
