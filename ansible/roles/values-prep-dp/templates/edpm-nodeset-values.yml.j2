@@ -1,0 +1,146 @@
+# yamllint disable rule:line-length
+# local-config: referenced, but not emitted by kustomize
+---
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: edpm-nodeset-values
+  annotations:
+    config.kubernetes.io/local-config: "true"
+data:
+  root_password: cmVkaGF0Cg==
+  preProvisioned: true
+  baremetalSetTemplate:
+    ctlplaneInterface: {{ iface_1 }}
+    cloudUserName: cloud-admin
+  ssh_keys:
+    # Authorized keys that will have access to the dataplane computes via SSH
+    # pre-provisioned node don't need this field, it will be removed later.
+    authorized: removed
+    # The private key that will have access to the dataplane computes via SSH
+    private: |
+{{ ssh_private_key | indent(6, true) }}
+    # The public key that will have access to the dataplane computes via SSH
+    public: {{ ssh_public_key }}
+  nodeset:
+    ansible:
+      ansibleUser: {{ ssh_username }}
+      ansiblePort: 22
+      ansibleVars:
+        edpm_bootstrap_release_version_package: []
+        edpm_bootstrap_command: |
+          dnf install -y http://download.devel.redhat.com/rcm-guest/puddles/OpenStack/rhos-release/rhos-release-latest.noarch.rpm;
+          rhos-release -x;
+          rhos-release rhel;
+          mkdir -p /root/.config/containers/ && echo "{\"default\":[{\"type\":\"insecureAcceptAnything\"}]}" > /root/.config/containers/policy.json
+        timesync_ntp_servers:
+          - hostname: pool.ntp.org
+        # edpm_network_config
+        # These vars are edpm_network_config role vars
+        edpm_network_config_hide_sensitive_logs: false
+        edpm_network_config_template: |
+          ---
+          network_config:
+          - type: vlan
+            device: {{ iface_1 }}
+            vlan_id: 17
+            addresses:
+{%- raw %}
+            - ip_netmask: {{ internalapi_ip }}/{{ internalapi_cidr }}
+{% endraw %}
+          - type: vlan
+            device: {{ iface_2 }}
+            vlan_id: 20
+            addresses:
+{%- raw %}
+            - ip_netmask: {{ storage_ip }}/{{ storage_cidr }}
+{% endraw %}
+          - type: vlan
+            device: {{ iface_1 }}
+            vlan_id: 18
+            addresses:
+{%- raw %}
+            - ip_netmask: {{ tenant_ip }}/{{ tenant_cidr }}
+{% endraw %}
+          - type: interface
+            name: {{ iface_0 }}
+            use_dhcp: false
+{%- raw %}
+            dns_servers: {{ ctlplane_dns_nameservers }}
+            domain: {{ dns_search_domains }}
+            addresses:
+            - ip_netmask: {{ ctlplane_ip }}/{{ ctlplane_cidr }}
+            routes: []
+          - type: ovs_bridge
+            name: br-ex
+            use_dhcp: false
+            dns_servers: {{ ctlplane_dns_nameservers }}
+            domain: {{ dns_search_domains }}
+{% endraw %}
+            members:
+            - type: interface
+              name: {{ iface_2 }}
+              primary: true
+            - type: vlan
+              vlan_id: 19
+              addresses:
+{%- raw %}
+              - ip_netmask: {{ external_ip }}/{{ external_cidr }}
+{% endraw %}
+
+        # These vars are for the network config templates themselves and are
+        # considered EDPM network defaults.
+        neutron_physical_bridge_name: br-ex
+        neutron_public_interface_name: {{ iface_2 }}
+        # edpm_nodes_validation
+        edpm_nodes_validation_validate_controllers_icmp: false
+        edpm_nodes_validation_validate_gateway_icmp: false
+        dns_search_domains: []
+        gather_facts: false
+        # edpm firewall, change the allowed CIDR if needed
+        edpm_sshd_configure_firewall: true
+        edpm_sshd_allowed_ranges:
+          - 172.16.0.0/16
+    networks:
+      - defaultRoute: true
+        name: ctlplane
+        subnetName: subnet1
+      - name: internalapi
+        subnetName: subnet1
+      - name: storage
+        subnetName: subnet1
+      - name: tenant
+        subnetName: subnet1
+    nodes:
+{% for node in edpm_nodes %}
+      edpm-compute-{{ loop.index0 }}:
+        hostName: compute-{{ loop.index0 }}
+        ansible:
+          ansibleHost: {{ node }}
+          ansibleUser: {{ ssh_username }}
+          ansibleVars:
+            fqdn_internal_api: edpm-compute-{{ loop.index0 }}.example.com
+{% endfor %}
+    services:
+      - bootstrap
+      - download-cache
+      - reboot-os
+      - configure-network
+      - validate-network
+      - install-os
+      - configure-os
+      - ssh-known-hosts
+      - run-os
+      - install-certs
+      - ovn
+      - neutron-ovn
+      - neutron-metadata
+      - libvirt
+      - nova
+      - telemetry
+  nova:
+    migration:
+      ssh_keys:
+        private: |
+{{ nova_migration_private_key | indent(10, true) }}
+        public: {{ nova_migration_public_key }}

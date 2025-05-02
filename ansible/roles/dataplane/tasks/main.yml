@@ -1,0 +1,12 @@
+---
+- name: Apply nodeset template
+  shell: |
+    kustomize build {{ dt_path }}/examples/dt/perfscale/scalelab/edpm/nodeset/. | oc apply -f -
+
+- name: wait for nodeset
+  shell: |
+    oc wait osdpns openstack-edpm --for condition=SetupReady --timeout=600s
+
+- name: Apply deployment template
+  shell: |
+    kustomize build {{ dt_path }}/examples/dt/perfscale/scalelab/edpm/deployment/. | oc apply -f -

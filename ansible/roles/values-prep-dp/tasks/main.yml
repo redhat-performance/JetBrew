@@ -1,0 +1,51 @@
+---
+- name: get the EDPM nodes
+  set_fact:
+    edpm_nodes: "{{ ocp_inventry.json.nodes[4:7] | map(attribute='name') | list }}"
+
+- name: check ssh key exists
+  stat:
+    path: "{{ ssh_key_file }}.pub"
+  register: ssh_key
+
+- name: generate ssh if not exist
+  command:
+    ssh-keygen -t rsa -N "" -f {{ ssh_key_file }}
+  when: not ssh_key.stat.exists
+
+- name: Copy ssh key to each node
+  shell: >
+    sshpass -p "{{ ssh_password }}" ssh-copy-id
+    -i {{ ssh_key_file }}.pub
+    -o StrictHostKeyChecking=no
+    {{ ssh_username }}@{{ item }}
+  loop: "{{ edpm_nodes }}"
+
+- name: load and setfact of ssh key content
+  set_fact:
+    ssh_private_key: "{{ lookup('file', ssh_key_file) | b64encode }}"
+    ssh_public_key: "{{ lookup('file', ssh_key_file + '.pub') | b64encode }}"
+
+- name: Generate nova migration key
+  command:
+    ssh-keygen -t rsa -N "" -f {{ nova_migration_key }}
+  args:
+    creates: "{{ nova_migration_key }}"
+
+- name: load and setfact of nova migration key
+  set_fact:
+    nova_migration_private_key: "{{ lookup('file', nova_migration_key) | b64encode }}"
+    nova_migration_public_key: "{{ lookup('file', nova_migration_key + '.pub') | b64encode }}"
+
+- name: generate nodeset values
+  template:
+    src: edpm-nodeset-values.yml.j2
+    dest: "{{ dt_path }}/examples/dt/perfscale/scalelab/edpm/nodeset/values.yaml"
+  vars:
+    iface_0: 'abc'
+    iface_1: '123'
+    iface_2: 'xyz'
+
+- name: node names
+  debug:
+    msg: "{{ edpm_nodes }}"

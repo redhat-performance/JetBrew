@@ -33,6 +33,10 @@
   async: 300
   poll: 5
 
+- name: create lvm subcription
+  shell: |
+    kustomize build {{ dt_path }}/examples/dt/perfscale/scalelab/lvms/lvm-sub/. | oc apply -f -
+
 - name: Wait for Subscription 'lvms'
   ansible.builtin.shell: |
     until oc get subscription lvms -n openshift-storage >/dev/null 2>&1; do sleep 5; done

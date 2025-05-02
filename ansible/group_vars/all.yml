@@ -1,0 +1,8 @@
+# Baremetal node login and key details
+
+ssh_password: 100yard-
+ssh_username: root
+ssh_key_file: ~/.ssh/id_rsa #don't add .pub
+
+# Nova migration key
+nova_migration_key: ~/.ssh/nova_migration
