@@ -41,10 +41,6 @@
   template:
     src: edpm-nodeset-values.yml.j2
     dest: "{{ dt_path }}/examples/dt/perfscale/scalelab/edpm/nodeset/values.yaml"
-  vars:
-    iface_0: 'abc'
-    iface_1: '123'
-    iface_2: 'xyz'
 
 - name: node names
   debug:

@@ -57,4 +57,4 @@
 - name: Render lvms value
   template:
     src: lvms-values.yaml.j2
-    dest: "{{ dt_path }}/examples/dt/perfscale/scalelab/lvms/values.yaml"
+    dest: "{{ dt_path }}/examples/dt/perfscale/scalelab/lvms/lvm-cluster/values.yaml"
