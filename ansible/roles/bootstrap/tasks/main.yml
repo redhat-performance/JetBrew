@@ -19,6 +19,14 @@
     url: "https://wiki.scalelab.redhat.com/instack/cloud{{ cloud }}_ocpinventory.json"
     return_content: true
   register: ocpinventory
+  when: lab == 'scale'
+
+- name: download ocp_inventry file
+  uri:
+    url: "https://wiki.rdu3.labs.perfscale.redhat.com/instack/cloud{{ cloud }}_ocpinventory.json"
+    return_content: true
+  register: ocpinventory
+  when: lab == 'alias'
 
 - name: set fact ocp inventory
   set_fact:

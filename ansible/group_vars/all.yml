@@ -1,4 +1,5 @@
 cloud: 40
+lab: scale #scale/alias
 dt_path: /root/test/architecture
 
 # Baremetal node login and key details

@@ -42,7 +42,7 @@ data:
         vlan: 17
     mtu: 1500
     prefix-length: 24
-    iface: {{ iface_1 }}.17
+    iface: internalapi
     vlan: 17
     base_iface: {{ iface_1 }}
     lb_addresses:
@@ -75,7 +75,7 @@ data:
         vlan: 19
     mtu: 1500
     prefix-length: 24
-    iface: {{ iface_2 }}.19
+    iface: external
     vlan: 19
     base_iface: {{ iface_2 }}
     lb_addresses:
@@ -113,7 +113,7 @@ data:
         vlan: 20
     mtu: 1500
     prefix-length: 24
-    iface: {{ iface_2 }}.20
+    iface: storage
     vlan: 20
     base_iface: {{ iface_2 }}
     lb_addresses:
@@ -142,7 +142,7 @@ data:
         vlan: 18
     mtu: 1500
     prefix-length: 24
-    iface: {{ iface_1 }}.18
+    iface: tenant
     vlan: 18
     base_iface: {{ iface_1 }}
     lb_addresses:
@@ -183,10 +183,10 @@ data:
         "cniVersion": "0.3.1",
         "name": "ctlplane",
         "type": "macvlan",
-        "master": "ctlplane",
+        "master": "{{ iface_0 }}",
         "ipam": {
           "type": "whereabouts",
-          "range": "172.16.0.0./16",
+          "range": "172.16.0.0/16",
           "range_start": "172.16.15.10",
           "range_end": "172.16.15.250"
         }
