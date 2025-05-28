@@ -18,8 +18,7 @@ data:
     # pre-provisioned node don't need this field, it will be removed later.
     authorized: removed
     # The private key that will have access to the dataplane computes via SSH
-    private: |
-{{ ssh_private_key | indent(6, true) }}
+    private: {{ ssh_private_key }}
     # The public key that will have access to the dataplane computes via SSH
     public: {{ ssh_public_key }}
   nodeset:
@@ -29,10 +28,36 @@ data:
       ansibleVars:
         edpm_bootstrap_release_version_package: []
         edpm_bootstrap_command: |
-          dnf install -y http://download.devel.redhat.com/rcm-guest/puddles/OpenStack/rhos-release/rhos-release-latest.noarch.rpm;
-          rhos-release -x;
-          rhos-release rhel;
-          mkdir -p /root/.config/containers/ && echo "{\"default\":[{\"type\":\"insecureAcceptAnything\"}]}" > /root/.config/containers/policy.json
+          # root CA
+          cd /etc/pki/ca-trust/source/anchors/
+          curl -LOk https://certs.corp.redhat.com/RH-IT-Root-CA.crt
+          curl -LOk https://certs.corp.redhat.com/certs/2022-IT-Root-CA.pem
+          update-ca-trust
+
+          # install rhos-release repos
+          dnf --nogpgcheck --repofrompath=rhos-release,http://download.devel.redhat.com/rcm-guest/puddles/OpenStack/rhos-release/ --repo=rhos-release install -y rhos-release
+          rhos-release ceph-7.1-rhel-9 -r 9.4
+
+          # Issue #2 - edpm_bootstrap fails if we don't update 'container-selinux'
+          dnf update -y
+
+          rpm -ivh --nosignature http://download.devel.redhat.com/rcm-guest/puddles/OpenStack/rhos-release/rhos-release-latest.noarch.rpm
+          rhos-release ceph-7.1-rhel-9 -r 9.4
+          curl -o /etc/yum.repos.d/delorean.repo https://osp-trunk.hosted.upshift.rdu2.redhat.com/rhel9-osp18/current-podified/delorean.repo
+          echo "[osptrunk-candidate-deps]" >> "/etc/yum.repos.d/osptrunk-candidate-deps.repo"
+          echo "name=osptrunk-candidate-deps" >> "/etc/yum.repos.d/osptrunk-candidate-deps.repo"
+          echo "baseurl=http://download.eng.bos.redhat.com/brewroot/repos/rhos-18.0-rhel-9-trunk-candidate/latest/x86_64/" >> "/etc/yum.repos.d/osptrunk-candidate-deps.repo"
+          echo "gpgcheck=0" >> /etc/yum.repos.d/osptrunk-candidate-deps.repo
+          echo "enabled=1" >> /etc/yum.repos.d/osptrunk-candidate-deps.repo
+          echo "priority=1" >> /etc/yum.repos.d/osptrunk-candidate-deps.repo
+           # sets up rhoso release repo
+          echo "[rhoso-18.0-rhel-9-nightly-compose]" >> /etc/yum.repos.d/rhosotrunk-compose-deps.repo
+          echo "name=rhoso-18.0-rhel-9-nightly-compose" >> /etc/yum.repos.d/rhosotrunk-compose-deps.repo
+          echo "baseurl=http://download.hosts.prod.upshift.rdu2.redhat.com/rhel-9/nightly/RHOSO/RHOSO-18.0-trunk/latest-RHOSO_TRUNK-18-RHEL-9/compose/OpenStack/x86_64/os/" >> /etc/yum.repos.d/rhosotrunk-compose-deps.repo
+          echo "gpgcheck=0" >> /etc/yum.repos.d/rhosotrunk-compose-deps.repo
+          echo "enabled=1" >> /etc/yum.repos.d/rhosotrunk-compose-deps.repo
+          echo "priority=1" >> /etc/yum.repos.d/rhosotrunk-compose-deps.repo
+          echo "includepkgs=rhoso-release-18*" >> /etc/yum.repos.d/rhosotrunk-compose-deps.repo
         timesync_ntp_servers:
           - hostname: pool.ntp.org
         # edpm_network_config
@@ -111,15 +136,17 @@ data:
         subnetName: subnet1
       - name: tenant
         subnetName: subnet1
+      - name: external
+        subnetName: subnet1
     nodes:
-{% for node in edpm_nodes %}
-      edpm-compute-{{ loop.index0 }}:
-        hostName: compute-{{ loop.index0 }}
+{% for node in edpm_node_list %}
+      edpm-{{ node.hostname }}:
+        hostName: {{ node.hostname }}
         ansible:
-          ansibleHost: {{ node }}
+          ansibleHost: {{ node.ip_address }}
           ansibleUser: {{ ssh_username }}
           ansibleVars:
-            fqdn_internal_api: edpm-compute-{{ loop.index0 }}.example.com
+            fqdn_internal_api: {{ node.hostname }}.example.com
 {% endfor %}
     services:
       - bootstrap
@@ -141,6 +168,5 @@ data:
   nova:
     migration:
       ssh_keys:
-        private: |
-{{ nova_migration_private_key | indent(10, true) }}
+        private: {{ nova_migration_private_key }}
         public: {{ nova_migration_public_key }}

@@ -1,0 +1,40 @@
+---
+- name: Generate password hash for ssh
+  set_fact:
+    password_hash: "{{ ssh_password | password_hash('sha512') }}"
+
+- name: Create ssh user
+  user:
+    name: "{{ ssh_username }}"
+    password: "{{ password_hash }}"
+    shell: /bin/bash
+    groups: wheel
+    append: true
+    state: present
+  delegate_to: "{{ node.fqdn }}"
+
+- name: Configure passwordless sudo for ssh user
+  copy:
+    dest: "/etc/sudoers.d/{{ ssh_username }}"
+    content: "{{ ssh_username }} ALL=(ALL) NOPASSWD:ALL\n"
+    owner: root
+    group: root
+    mode: '0440'
+  delegate_to: "{{ node.fqdn }}"
+
+- name: clean the interfaces
+  shell: . /root/clean-interfaces.sh --nuke
+  delegate_to: "{{ node.fqdn }}"
+  ignore_errors: yes
+
+- name: configure ctlplane ip 
+  command: >
+    ip addr add {{ node.ip_address }}/16 dev {{ iface_0 }}
+  become: yes
+  delegate_to: "{{ node.fqdn }}"
+
+- name: set hostname
+  hostname:
+    name: "{{ node.hostname }}"
+  become: yes
+  delegate_to: "{{ node.fqdn }}"

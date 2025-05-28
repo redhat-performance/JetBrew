@@ -1,11 +1,19 @@
 cloud: 40
 lab: scale #scale/alias
 dt_path: /root/test/architecture
+compute_count: 2
 
 # Baremetal node login and key details
 ssh_password: 100yard-
-ssh_username: root
+ssh_username: cloud-admin
 ssh_key_file: ~/.ssh/id_rsa #don't add .pub
 
 # Nova migration key
 nova_migration_key: ~/.ssh/nova_migration
+
+#controlplane allocation start ip (should be same in the nncp values)
+ctlplane_start_ip: 172.16.20.100
+
+#set the kubeconfig path
+environment:
+  KUBECONFIG: /root/mno/kubeconfig

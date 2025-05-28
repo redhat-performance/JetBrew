@@ -41,7 +41,7 @@ data:
         name: subnet1
         vlan: 17
     mtu: 1500
-    prefix-length: 24
+    prefix-length: 16
     iface: internalapi
     vlan: 17
     base_iface: {{ iface_1 }}
@@ -65,16 +65,16 @@ data:
         }
       }
   external:
-    dnsDomain: externalapi.example.com
+    dnsDomain: external.example.com
     subnets:
       - allocationRanges:
-          - end: 172.19.100.254
+          - end: 172.19.254.254
             start: 172.19.5.100
         cidr: 172.19.0.0/16
         name: subnet1
-        vlan: 19
+        gateway: 172.19.0.1
     mtu: 1500
-    prefix-length: 24
+    prefix-length: 16
     iface: external
     vlan: 19
     base_iface: {{ iface_2 }}
@@ -112,7 +112,7 @@ data:
         name: subnet1
         vlan: 20
     mtu: 1500
-    prefix-length: 24
+    prefix-length: 16
     iface: storage
     vlan: 20
     base_iface: {{ iface_2 }}
@@ -141,7 +141,7 @@ data:
         name: subnet1
         vlan: 18
     mtu: 1500
-    prefix-length: 24
+    prefix-length: 16
     iface: tenant
     vlan: 18
     base_iface: {{ iface_1 }}
@@ -169,7 +169,7 @@ data:
         cidr: 172.16.0.0/16
         gateway: 172.16.0.1
         name: subnet1
-    prefix-length: 24
+    prefix-length: 16
     iface: {{ iface_0 }}
     mtu: 9000
     lb_addresses:

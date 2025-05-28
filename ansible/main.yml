@@ -3,8 +3,8 @@
   roles:
     - bootstrap
     - values-prep
+    - values-prep-dp
     - lvms
     - common-osp
     - controlplane
-    - values-prep-dp
     - dataplane

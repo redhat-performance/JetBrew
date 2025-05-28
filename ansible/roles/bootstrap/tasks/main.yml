@@ -14,20 +14,25 @@
   shell:
     mv kustomize /usr/bin/.
 
-- name: download ocp_inventry file
+- name: download ocp_inventry file(scale)
   uri:
     url: "https://wiki.scalelab.redhat.com/instack/cloud{{ cloud }}_ocpinventory.json"
     return_content: true
-  register: ocpinventory
+  register: ocpinventory_scale
   when: lab == 'scale'
 
-- name: download ocp_inventry file
+- name: download ocp_inventry file(alias)
   uri:
     url: "https://wiki.rdu3.labs.perfscale.redhat.com/instack/cloud{{ cloud }}_ocpinventory.json"
     return_content: true
-  register: ocpinventory
+  register: ocpinventory_alias
   when: lab == 'alias'
 
 - name: set fact ocp inventory
   set_fact:
-    ocp_inventry: "{{ ocpinventory }}"
+    ocp_inventry: "{{ ocpinventory_scale if lab == 'scale' else ocpinventory_alias }}"
+
+- name: enable ip forward for ovn-kubernets
+  shell: |
+    oc patch network.operator cluster -p '{"spec":{"defaultNetwork": {"ovnKubernetesConfig":{"gatewayConfig":{"ipForwarding": "Global"}}}}}' --type=merge
+
