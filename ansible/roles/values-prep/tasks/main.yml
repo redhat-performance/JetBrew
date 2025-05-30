@@ -45,6 +45,7 @@
   shell:
     ip addr add 172.16.0.1/16 dev {{ iface_0 }}
   become: yes
+  ignore_errors: yes
 
 - name: get the common disk accros nodes
   include_tasks: find-node-disks.yml

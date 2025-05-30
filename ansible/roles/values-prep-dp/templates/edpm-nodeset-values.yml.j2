@@ -151,8 +151,8 @@ data:
     services:
       - bootstrap
       - download-cache
-      - reboot-os
       - configure-network
+      - reboot-os
       - validate-network
       - install-os
       - configure-os
@@ -164,7 +164,6 @@ data:
       - neutron-metadata
       - libvirt
       - nova
-      - telemetry
   nova:
     migration:
       ssh_keys:
