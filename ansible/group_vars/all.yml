@@ -1,5 +1,5 @@
 cloud: 40
-lab: scale #scale/alias
+lab: scalelab #scalelab/performancelab
 dt_path: /root/test/architecture
 compute_count: 2
 

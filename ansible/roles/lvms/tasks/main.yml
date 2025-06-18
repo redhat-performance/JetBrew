@@ -27,7 +27,7 @@
   retries: 30
   delay: 10
 
-- name: generate lvms yamls
+- name: generate lvms cluster yamls
   shell:
     kustomize build {{ dt_path }}/examples/dt/perfscale/scalelab/lvms/lvm-cluster/. | tee lvm-cluster.yml | oc apply -f -
 
