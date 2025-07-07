@@ -47,6 +47,10 @@
   become: yes
   ignore_errors: yes
 
+- name: set masquerade for the jump host
+  shell: |
+    iptables -t nat -A POSTROUTING -s 172.16.0.0/16 -o {{ iface_0 }} -j MASQUERADE
+
 - name: get the common disk accros nodes
   include_tasks: find-node-disks.yml
 

@@ -16,14 +16,14 @@
 
 - name: download ocp_inventry file(scale)
   uri:
-    url: "https://wiki.scalelab.redhat.com/instack/cloud{{ cloud }}_ocpinventory.json"
+    url: "https://wiki.scalelab.redhat.com/instack/{{ cloud }}_ocpinventory.json"
     return_content: true
   register: ocpinventory_scale
   when: lab == 'scalelab'
 
 - name: download ocp_inventry file(alias)
   uri:
-    url: "https://wiki.rdu3.labs.perfscale.redhat.com/instack/cloud{{ cloud }}_ocpinventory.json"
+    url: "https://wiki.rdu3.labs.perfscale.redhat.com/instack/{{ cloud }}_ocpinventory.json"
     return_content: true
   register: ocpinventory_alias
   when: lab == 'performancelab'
@@ -35,4 +35,3 @@
 - name: enable ip forward for ovn-kubernets
   shell: |
     oc patch network.operator cluster -p '{"spec":{"defaultNetwork": {"ovnKubernetesConfig":{"gatewayConfig":{"ipForwarding": "Global"}}}}}' --type=merge
-
