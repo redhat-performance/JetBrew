@@ -1,7 +1,7 @@
 cloud: cloud40
 lab: scalelab #scalelab/performancelab
 dt_path: /root/test/architecture
-compute_count: 2
+compute_count: 1
 
 # Baremetal node login and key details
 ssh_password: changeme

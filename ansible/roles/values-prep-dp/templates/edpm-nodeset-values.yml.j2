@@ -95,7 +95,9 @@ data:
             domain: {{ dns_search_domains }}
             addresses:
             - ip_netmask: {{ ctlplane_ip }}/{{ ctlplane_cidr }}
-            routes: []
+            routes:
+            - default: true
+              next_hop: {{ ctlplane_gateway_ip }}
           - type: ovs_bridge
             name: br-ex
             use_dhcp: false

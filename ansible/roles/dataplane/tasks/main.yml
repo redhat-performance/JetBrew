@@ -10,3 +10,23 @@
 - name: Apply deployment template
   shell: |
     kustomize build {{ dt_path }}/examples/dt/perfscale/scalelab/edpm/deployment/. | tee deployment.yml | oc apply -f -
+
+- name: Wait for dataplane deployment to finish
+  shell: |
+    oc wait osdpns openstack-edpm -n openstack --for condition=Ready --timeout=40m
+
+- name: Run nova-manage cell_v2 discover_hosts
+  shell: |
+    oc project openstack
+    oc rsh nova-cell0-conductor-0 nova-manage cell_v2 discover_hosts --verbose
+
+- name: List OpenStack hypervisors
+  shell: |
+    oc project openstack
+    oc rsh openstackclient openstack hypervisor list
+  register: hypervisor_output
+
+- name: Display hypervisor list
+  debug:
+    msg: "{{ hypervisor_output.stdout_lines }}"
+
