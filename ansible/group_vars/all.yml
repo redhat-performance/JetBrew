@@ -4,7 +4,7 @@ dt_path: /root/test/architecture
 compute_count: 1
 
 # Baremetal node login and key details
-ssh_password: changeme
+ssh_password: your-password
 ssh_username: cloud-admin
 ssh_key_file: ~/.ssh/id_rsa #don't add .pub
 
