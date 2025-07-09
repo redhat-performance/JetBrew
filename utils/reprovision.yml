@@ -1,0 +1,59 @@
+---
+- name: Reprovision the given nodes
+  hosts: localhost
+  connection: local
+  gather_facts: false
+  vars:
+    lab: scale
+    start_node: 4 #starts from zero
+    number_of_nodes: 1 # -1 for till last node
+    cloud: 40
+    password: rdu2@xxxx
+
+  tasks:
+    - name: get the instackenv for scalelab
+      uri:
+        url: "https://wiki.scalelab.redhat.com/instack/cloud{{ cloud }}_ocpinventory.json"
+        return_content: true
+      register: inventory_scale
+      when: lab == 'scale'
+
+    - name: get the instackenv for alias
+      uri:
+        url: "https://wiki.rdu3.labs.perfscale.redhat.com/instack/cloud{{ cloud }}_ocpinventory.json"
+        return_content: true
+      register: inventory_alias
+      when: lab == 'alias'
+
+    - name: set fact inventory
+      set_fact:
+        inventory: "{{ inventory_scale if lab == 'scale' else inventory_alias }}"
+
+    - name: last index
+      set_fact:
+        last_node: "{{ inventory.json.nodes | length }}"
+      when: number_of_nodes == -1
+
+    - name: last_index
+      set_fact:
+        last_node: "{{ start_node + number_of_nodes }}"
+      when: number_of_nodes != -1
+
+    - name: get all the nodes
+      set_fact:
+        final_nodes: "{{ inventory.json.nodes[start_node:last_node|int] | map(attribute='pm_addr') | list }}"
+
+    - name: print selected nodes
+      debug:
+        msg: "Nodes selected for reprovision: {{ final_nodes }}"
+
+    - name: set boot order to foreman
+      shell: |
+        podman run --rm --dns 10.1.32.3 -it quads/badfish -H {{ item }} -u quads -p {{ password }} -i config/idrac_interfaces.yml --boot-to-type foreman
+      loop: "{{ final_nodes }}"
+
+      #- name: power cycle the node
+      #shell: |
+      #  podman run --rm --dns 10.1.32.3 -it quads/badfish -H {{ item }} -u quads -p {{ password }} -i config/idrac_interfaces.yml --power-cycle
+      #loop: "{{ final_nodes }}"
+    
