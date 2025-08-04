@@ -1,6 +1,6 @@
-# RHOSO Baremetal Installer
+# JetBrew (RHOSO Baremetal Installer)
 
-An Ansible-based automation tool for deploying Red Hat OpenStack Services on OpenShift (RHOSO) on baremetal infrastructure in Scale Lab environments, leveraging the Validated Architecture (VA) and Data Types (DT) architecture patterns.
+An Ansible-based automation tool for deploying Red Hat OpenStack Services on OpenShift (RHOSO) on baremetal infrastructure in Scale Lab environments, leveraging the Validated Architecture (VA) and Deployment Templates (DT) architecture patterns.
 
 ## Overview
 
