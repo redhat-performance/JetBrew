@@ -1,4 +1,9 @@
 ---
+- name: clean up the dt_path
+  file:
+    path: "{{ dt_path }}"
+    state: absent
+
 - name: clone architecture repo
   git:
     repo: https://github.com/masco/architecture.git
