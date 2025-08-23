@@ -1,0 +1,62 @@
+---
+# Health check and recovery tasks
+
+- name: "Perform health check and recovery for attempt {{ attempt_number }}"
+  block:
+    - name: "Check cluster health status"
+      shell: ceph health
+      register: ceph_health_check
+      ignore_errors: true
+
+    - name: "Set healthy flag if cluster is OK"
+      set_fact:
+        cluster_is_healthy: true
+      when: ceph_health_check.stdout == 'HEALTH_OK'
+
+    - name: "Attempt daemon recovery for unhealthy cluster"
+      block:
+        - name: "Identify unhealthy daemons"
+          shell: |
+            ceph orch ps --format json | jq -r '.[] | select((.status_desc // "" | ascii_downcase | test("^(error|stopped|failed|unknown)$"))) | .daemon_name'
+          register: unhealthy_daemons
+          ignore_errors: true
+
+        - name: "Show unhealthy daemons"
+          debug:
+            msg: "Unhealthy daemons found: {{ unhealthy_daemons.stdout_lines }}"
+          when: unhealthy_daemons.stdout_lines | length > 0
+
+        - name: "Restart unhealthy daemons"
+          shell: |
+            if [ ! -z "{{ daemon }}" ]; then
+              echo "Restarting daemon: {{ daemon }}"
+              ceph orch daemon restart "{{ daemon }}"
+              sleep 2
+            fi
+          loop: "{{ unhealthy_daemons.stdout_lines }}"
+          loop_control:
+            loop_var: daemon
+          when: unhealthy_daemons.stdout_lines | length > 0
+          ignore_errors: true
+
+        - name: "Wait for daemon recovery (attempt {{ attempt_number }})"
+          pause:
+            seconds: "{{ ceph_health_check_delay }}"
+
+        - name: "Recheck health after recovery attempt"
+          shell: ceph health
+          register: post_recovery_health
+          ignore_errors: true
+
+        - name: "Show recovery result"
+          debug:
+            msg: "Post-recovery health: {{ post_recovery_health.stdout }}"
+
+        - name: "Set healthy flag if recovery succeeded"
+          set_fact:
+            cluster_is_healthy: true
+          when: post_recovery_health.stdout == 'HEALTH_OK'
+
+      when: ceph_health_check.stdout != 'HEALTH_OK'
+
+  when: not cluster_is_healthy

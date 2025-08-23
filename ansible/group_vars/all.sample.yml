@@ -17,3 +17,19 @@ ctlplane_start_ip: 172.16.20.100
 #set the kubeconfig path
 ocp_environment:
   KUBECONFIG: /root/mno/kubeconfig
+
+
+
+
+# External ceph vars
+ceph_node_count: 3
+ansible_ssh_password: "{{ ssh_password }}"
+
+rhos_release_rpm: 
+ceph_version: "7.1"
+
+# Registry credentials used by external ceph
+registry_url: "registry.redhat.io"
+registry_username:
+registry_password:
+

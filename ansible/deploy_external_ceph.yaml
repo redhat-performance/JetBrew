@@ -1,0 +1,67 @@
+---
+- name: Prepare Ceph dynamic inventory
+  hosts: localhost
+  gather_facts: false
+  
+  tasks:
+    - name: Download OCP inventory file (scalelab)
+      uri:
+        url: "https://wiki.scalelab.redhat.com/instack/{{ cloud }}_ocpinventory.json"
+        return_content: true
+      register: ocpinventory_scale
+      when: lab == 'scalelab'
+
+    - name: Download OCP inventory file (performancelab)
+      uri:
+        url: "https://wiki.rdu3.labs.perfscale.redhat.com/instack/{{ cloud }}_ocpinventory.json"
+        return_content: true
+      register: ocpinventory_alias
+      when: lab == 'performancelab'
+
+    - name: Set fact for OCP inventory
+      set_fact:
+        ocp_inventry: "{{ ocpinventory_scale if lab == 'scalelab' else ocpinventory_alias }}"
+
+    - name: Parse nodes from OCP inventory
+      set_fact:
+        all_nodes: "{{ (ocp_inventry.content | from_json).nodes }}"
+        total_num_nodes: "{{ (ocp_inventry.content | from_json).nodes | length }}"
+
+    - name: Validate sufficient nodes for Ceph deployment
+      fail:
+        msg: "Insufficient number of nodes available for ceph cluster"
+      when: (total_num_nodes | int) - 4 - (ceph_node_count | int) < (compute_count | int)
+
+    - name: Select nodes for Ceph from bottom of list
+      set_fact:
+        storage_nodes: "{{ all_nodes[-ceph_node_count:] }}"
+        storage_admin_node: "{{ all_nodes[-ceph_node_count] }}"
+
+    - name: Add storage admin node to dynamic inventory
+      add_host:
+        name: "{{ storage_admin_node.name }}"
+        groups: admin
+        ansible_host: "{{ storage_admin_node.name }}"
+        ansible_user: root
+        ansible_ssh_password: "{{ ansible_ssh_password }}"
+        ansible_become: yes
+        ansible_ssh_common_args: '-o StrictHostKeyChecking=no'
+
+    - name: Add all storage nodes to ceph_nodes group in dynamic inventory
+      add_host:
+        name: "{{ item.name }}"
+        groups: ceph_nodes
+        ansible_host: "{{ item.name }}"
+        ansible_user: root
+        ansible_ssh_password: "{{ ansible_ssh_password }}"
+        ansible_become: yes
+        ansible_ssh_common_args: '-o StrictHostKeyChecking=no'
+      loop: "{{ storage_nodes }}"
+
+- name: Deploy Ceph cluster
+  hosts: ceph_nodes
+  gather_facts: true
+  roles:
+    - ceph
+
+
