@@ -1,11 +1,15 @@
 ---
 - name: apply nncp CRs
   shell: |
-    kustomize build {{ dt_path }}/examples/dt/perfscale/scalelab/nncp/. | tee nncp.yml | oc apply -f -
+    kustomize build {{ dt_path }}/examples/dt/perfscale/scalelab/networking/nncp/. | tee nncp.yml | oc apply -f -
 
 - name: wait for NNCPs to be available
   shell:
     oc wait nncp -l osp/nncm-config-type=standard --for jsonpath='{.status.conditions[0].reason}'=SuccessfullyConfigured --timeout=300s
+
+- name: apply remaining network CRs
+  shell: |
+    kustomize build {{ dt_path }}/examples/dt/perfscale/scalelab/networking/. | tee network.yml | oc apply -f -
 
 - name: apply controlplane CRs
   shell: |

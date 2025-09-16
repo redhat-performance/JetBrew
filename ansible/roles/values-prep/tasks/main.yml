@@ -59,7 +59,7 @@
     src: nncp_values.yaml.j2
     dest: "{{ dt_path }}/examples/dt/perfscale/scalelab/nncp/values.yaml"
 
-- name: Render service_values.yaml 
+- name: Render service_values.yaml
   template:
     src: service_values.yaml.j2
     dest: "{{ dt_path }}/examples/dt/perfscale/scalelab/service-values.yaml"
