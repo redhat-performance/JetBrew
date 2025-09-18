@@ -57,7 +57,7 @@
 - name: Render nncp.yaml
   template:
     src: nncp_values.yaml.j2
-    dest: "{{ dt_path }}/examples/dt/perfscale/scalelab/nncp/values.yaml"
+    dest: "{{ dt_path }}/examples/dt/perfscale/scalelab/networking/nncp/values.yaml"
 
 - name: Render service_values.yaml
   template:
