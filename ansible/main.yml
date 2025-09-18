@@ -3,6 +3,17 @@
   environment: "{{ ocp_environment }}"
   roles:
     - bootstrap
+
+- hosts: ceph_nodes
+  gather_facts: true
+  roles:
+    - role: ceph
+      when: ceph_enabled | bool
+
+- hosts: localhost
+  gather_facts: false
+  environment: "{{ ocp_environment }}"
+  roles:
     - values-prep
     - values-prep-dp
     - lvms

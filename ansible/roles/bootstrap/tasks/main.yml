@@ -37,6 +37,46 @@
   set_fact:
     ocp_inventry: "{{ ocpinventory_scale if lab == 'scalelab' else ocpinventory_alias }}"
 
+# Ceph dynamic inventory block
+- block:
+  - name: parse nodes from ocp inventory
+    set_fact:
+      all_nodes: "{{ (ocp_inventry.content | from_json).nodes }}"
+      total_num_nodes: "{{ (ocp_inventry.content | from_json).nodes | length }}"
+
+  - name: validate sufficient nodes for deployment
+    fail:
+      msg: "Insufficient number of nodes available for ceph cluster"
+    when: (total_num_nodes | int) - 4 - (ceph_node_count | int) <= 0
+
+  - name: select nodes for ceph from bottom of list
+    set_fact:
+      storage_nodes: "{{ all_nodes[-ceph_node_count:] }}"
+      storage_admin_node: "{{ all_nodes[-ceph_node_count] }}"
+
+  - name: add storage admin node to dynamic inventory
+    add_host:
+      name: "{{ storage_admin_node.name }}"
+      groups: admin
+      ansible_host: "{{ storage_admin_node.name }}"
+      ansible_user: root
+      ansible_ssh_password: "{{ ansible_ssh_password }}"
+      ansible_become: yes
+      ansible_ssh_common_args: '-o StrictHostKeyChecking=no'
+
+  - name: add all storage nodes to ceph_nodes group in dynamic inventory
+    add_host:
+      name: "{{ item.name }}"
+      groups: ceph_nodes
+      ansible_host: "{{ item.name }}"
+      ansible_user: root
+      ansible_ssh_password: "{{ ansible_ssh_password }}"
+      ansible_become: yes
+      ansible_ssh_common_args: '-o StrictHostKeyChecking=no'
+    loop: "{{ storage_nodes }}"
+
+  when: ceph_enabled | bool
+
 - name: enable ip forward for ovn-kubernets
   shell: |
     oc patch network.operator cluster -p '{"spec":{"defaultNetwork": {"ovnKubernetesConfig":{"gatewayConfig":{"ipForwarding": "Global"}}}}}' --type=merge

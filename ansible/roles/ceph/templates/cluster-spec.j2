@@ -1,0 +1,12 @@
+{% for host in all_hosts_info %}
+---
+service_type: host
+addr: {{ host.storage_ip }}
+hostname: {{ host.hostname }}
+labels:
+  - osd
+{% if host.host_index | int < 3 %}
+  - mon
+  - mgr
+{% endif %}
+{% endfor %}
