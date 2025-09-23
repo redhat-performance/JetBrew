@@ -4,9 +4,10 @@
     ip: "{{ lookup('vars', 'node_' ~ item ~ '_ip') }}"
   shell: |
     ssh core@{{ ip }} \
-        "lsblk -J -o NAME,TYPE,MOUNTPOINT | jq -r '
+        "lsblk -J -b -o NAME,TYPE,SIZE,MOUNTPOINT | jq -r '
           .blockdevices[] 
           | select(.type == \"disk\") 
+          | select(.size > 0)
           | select((.children // []) | all(.mountpoint != \"/boot\")) 
           | \"/dev/\" + .name'"
   register: blk_outputs
