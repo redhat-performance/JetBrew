@@ -127,6 +127,33 @@ After successful deployment, the installer automatically:
 2. **Validates Hypervisors**: Lists available hypervisors to confirm successful deployment
 3. **Provides Status**: Displays deployment status and service availability
 
+## Cleanup
+
+To remove OpenStack resources from your cluster, use the cleanup playbook:
+
+```bash
+ansible-playbook ansible/cleanup.yml
+```
+
+This will **intelligently** discover and delete:
+- All OpenStack resources (any names, any deployment tool)
+- **MetalLB resources matching OpenStack NADs** (100% accurate identification)
+- Network resources and the openstack namespace
+
+### Smart MetalLB Cleanup (NAD-based)
+The cleanup uses a **smart approach** to identify OpenStack MetalLB resources:
+1. **Discovers** all NetworkAttachmentDefinitions (NADs) in `openstack` namespace
+2. **Matches** MetalLB resources in `metallb-system` namespace with same names as NADs
+3. **Deletes** only the matching IPAddressPools and L2Advertisements
+4. **Preserves** all other MetalLB resources used by other applications
+
+**Example:**
+- NAD found: `ctlplane` → Deletes: `ipaddresspool/ctlplane`, `l2advertisement/ctlplane`
+- NAD found: `internalapi` → Deletes: `ipaddresspool/internalapi`, `l2advertisement/internalapi`
+- Other resource: `my-app-pool` → **Preserved** (no matching NAD)
+
+This approach is **100% accurate** and works with any OpenStack network configuration!
+
 ## Troubleshooting
 
 ### Common Issues

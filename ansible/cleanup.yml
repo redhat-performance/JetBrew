@@ -1,0 +1,22 @@
+---
+- hosts: localhost
+  gather_facts: false
+  environment: "{{ ocp_environment }}"
+  
+  roles:
+    - cleanup-openstack
+
+  post_tasks:
+    - name: Cleanup completion message
+      debug:
+        msg: |
+          OpenStack cleanup playbook completed!
+          
+          The openstack namespace and all resources have been removed.
+          
+          To redeploy OpenStack, run:
+          ansible-playbook main.yml
+          
+          Note: You can verify that all resources have been properly removed:
+          oc get namespace openstack  # Should return "not found"
+          oc get crd | grep openstack  # Should show no OpenStack CRDs remain
