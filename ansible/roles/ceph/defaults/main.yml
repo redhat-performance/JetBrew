@@ -1,0 +1,16 @@
+---
+# Ceph role internal defaults
+ceph_allow_fqdn_hostname: true
+ceph_release: "ceph-{{ ceph_version }}-rhel-9"
+cluster_spec_file: "/root/cluster-spec.yaml"
+ceph_stabilization_wait_timeout: 180
+ceph_health_check_retries: 10
+ceph_health_check_delay: 60
+
+# Network configuration
+storage_network_vlan_id: 20
+storage_mgmt_network_vlan_id: 21
+storage_network: 172.20.0.0/16
+storage_mgmt_network: 172.21.0.0/16
+ip_offset: 10
+storage_network_nic_num: 4

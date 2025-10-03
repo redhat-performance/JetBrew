@@ -1,0 +1,111 @@
+---
+# Ceph node preparation tasks (runs on all ceph_nodes)
+- name: Run clean-interfaces.sh script
+  shell: /root/clean-interfaces.sh --nuke
+  ignore_errors: true
+
+- name: Install and configure Ceph packages
+  shell: |
+    dnf install -y {{ rhos_release_rpm }}
+    rhos-release {{ ceph_release }} -r {{ ansible_distribution_version }}
+    dnf install --allowerasing --assumeyes ceph-common python3 cephadm ceph-common cephadm-ansible
+
+- name: Flush iptables rules
+  shell: iptables --flush
+
+- name: Get current node info from OCP inventory
+  set_fact:
+    current_node_info: "{{ (hostvars['localhost']['ocp_inventry']['content'] | from_json).nodes | selectattr('name', 'equalto', inventory_hostname) | first }}"
+
+- name: Get storage MAC address for interface detection
+  set_fact:
+    storage_mac: "{{ current_node_info.mac[storage_network_nic_num | int - 1] }}"
+
+- name: Detect storage interface name from MAC address
+  shell: |
+    for iface in $(ls /sys/class/net/); do
+      if [ -f /sys/class/net/$iface/address ]; then
+        mac=$(cat /sys/class/net/$iface/address)
+        if [ "$mac" = "{{ storage_mac }}" ]; then
+          echo $iface
+          break
+        fi
+      fi
+    done
+  register: detected_storage_iface
+  failed_when: detected_storage_iface.stdout == ""
+
+- name: Set storage interface variables
+  set_fact:
+    storage_iface: "{{ detected_storage_iface.stdout }}"
+    storage_mgmt_iface: "{{ detected_storage_iface.stdout }}"
+
+- name: Set host index
+  set_fact:
+    host_index: "{{ groups['ceph_nodes'].index(inventory_hostname) }}"
+
+- name: Calculate storage and storage management network IPs and prefixes
+  set_fact:
+    storage_ip: "{{ storage_network.split('/')[0].split('.')[:-1] | join('.') }}.{{ ip_offset + host_index | int }}"
+    storage_mgmt_ip: "{{ storage_mgmt_network.split('/')[0].split('.')[:-1] | join('.') }}.{{ ip_offset + host_index | int }}"
+    storage_network_prefix: "{{ storage_network.split('/')[1] }}"
+    storage_mgmt_network_prefix: "{{ storage_mgmt_network.split('/')[1] }}"
+
+- name: Display assigned storage IPs
+  debug:
+    msg: |
+      Host: {{ inventory_hostname }} (index {{ host_index }})
+      Storage IP: {{ storage_ip }}
+      Storage Mgmt IP: {{ storage_mgmt_ip }}
+      Storage Network: {{ storage_network }}
+      Storage Mgmt Network: {{ storage_mgmt_network }}
+
+- name: Ensure NetworkManager is running
+  systemd:
+    name: NetworkManager
+    state: started
+    enabled: yes
+
+- name: Ensure base interface is up
+  shell: |
+    ip link set dev {{ storage_iface }} up
+    ip link set dev {{ storage_mgmt_iface }} up
+
+- name: Create storage VLAN interface
+  shell: |
+    nmcli connection add type vlan \
+      con-name {{ storage_iface }}.{{ storage_network_vlan_id }} \
+      ifname {{ storage_iface }}.{{ storage_network_vlan_id }} \
+      dev {{ storage_iface }} \
+      id {{ storage_network_vlan_id }} \
+      ip4 {{ storage_ip }}/{{ storage_network_prefix }} \
+      ipv4.method manual
+  ignore_errors: yes
+
+- name: Create storage management VLAN interface
+  shell: |
+    nmcli connection add type vlan \
+      con-name {{ storage_mgmt_iface }}.{{ storage_mgmt_network_vlan_id }} \
+      ifname {{ storage_mgmt_iface }}.{{ storage_mgmt_network_vlan_id }} \
+      dev {{ storage_mgmt_iface }} \
+      id {{ storage_mgmt_network_vlan_id }} \
+      ip4 {{ storage_mgmt_ip }}/{{ storage_mgmt_network_prefix }} \
+      ipv4.method manual
+  ignore_errors: yes
+
+- name: Bring up storage and storage management VLAN interfaces
+  shell: |
+    nmcli connection up {{ storage_iface }}.{{ storage_network_vlan_id }}
+    nmcli connection up {{ storage_mgmt_iface }}.{{ storage_mgmt_network_vlan_id }}
+
+- name: Store host information for cluster spec
+  set_fact:
+    host_info:
+      hostname: "{{ inventory_hostname }}"
+      storage_ip: "{{ storage_ip }}"
+      host_index: "{{ host_index }}"
+
+# Admin-only tasks (runs on admin node)
+- import_tasks: includes/admin_tasks.yml
+  run_once: true
+  delegate_to: "{{ groups['admin'][0] }}"
