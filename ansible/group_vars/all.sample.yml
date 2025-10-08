@@ -21,7 +21,7 @@ ocp_environment:
 
 
 
-# External ceph vars
+# External ceph deploy vars
 ceph_node_count: 3
 ansible_ssh_password: "{{ ssh_password }}"
 
@@ -33,3 +33,12 @@ registry_url: "registry.redhat.io"
 registry_username:
 registry_password:
 
+
+
+# Ceph backend integration
+# NOTE: This has to be used only after deploying external ceph via deploy_external_ceph.yaml
+ceph_backend: false
+ceph_admin_node: #hostname/ip
+ceph_admin_user: root
+ceph_admin_password: "{{ ansible_ssh_password }}"
+ceph_config_local_path: /root/ceph-config

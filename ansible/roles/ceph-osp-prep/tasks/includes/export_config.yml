@@ -1,0 +1,20 @@
+---
+- name: Export cephx keyring to admin node
+  shell: |
+    cephadm shell -- ceph auth get client.{{ ceph_client_name }} > /etc/ceph/ceph.client.{{ ceph_client_name }}.keyring
+
+- name: Export minimal Ceph configuration
+  shell: |
+    cephadm shell -- ceph config generate-minimal-conf > /etc/ceph/ceph.conf
+
+- name: Fetch cephx keyring to localhost
+  fetch:
+    src: /etc/ceph/ceph.client.{{ ceph_client_name }}.keyring
+    dest: "{{ ceph_config_local_path }}/ceph.client.{{ ceph_client_name }}.keyring"
+    flat: yes
+
+- name: Fetch ceph.conf to localhost
+  fetch:
+    src: /etc/ceph/ceph.conf
+    dest: "{{ ceph_config_local_path }}/ceph.conf"
+    flat: yes

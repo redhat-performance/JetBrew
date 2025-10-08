@@ -1,5 +1,26 @@
 - hosts: localhost
   gather_facts: false
+  tasks:
+    - name: Add Ceph admin node to dynamic inventory
+      add_host:
+        name: "{{ ceph_admin_node }}"
+        groups: ceph_admin
+        ansible_host: "{{ ceph_admin_node }}"
+        ansible_user: "{{ ceph_admin_user }}"
+        ansible_password: "{{ ceph_admin_password }}"
+        ansible_become: yes
+        ansible_ssh_common_args: '-o StrictHostKeyChecking=no'
+      when: ceph_backend | default(false) | bool
+
+- name: Configure Ceph for OpenStack services
+  hosts: ceph_admin
+  gather_facts: false
+  roles:
+    - { role: ceph-osp-prep, when: ceph_backend | default(false) | bool }
+
+- name: Deploy RHOSO
+  hosts: localhost
+  gather_facts: false
   environment: "{{ ocp_environment }}"
   roles:
     - bootstrap

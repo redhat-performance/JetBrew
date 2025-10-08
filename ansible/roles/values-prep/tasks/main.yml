@@ -64,6 +64,17 @@
     src: service_values.yaml.j2
     dest: "{{ dt_path }}/examples/dt/perfscale/scalelab/service-values.yaml"
 
+- name: Render service_values_ceph.yaml
+  template:
+    src: service_values_ceph.yaml.j2
+    dest: "{{ dt_path }}/examples/dt/perfscale/scalelab/service-values-ceph.yaml"
+  when: ceph_backend | default(false) | bool
+
+- name: Render kustomization.yaml for controlplane
+  template:
+    src: kustomization.yaml.j2
+    dest: "{{ dt_path }}/examples/dt/perfscale/scalelab/kustomization.yaml"
+
 - name: Render lvms value
   template:
     src: lvms-values.yaml.j2

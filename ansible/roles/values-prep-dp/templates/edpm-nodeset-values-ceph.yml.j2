@@ -1,0 +1,48 @@
+---
+# local-config: referenced, but not emitted by kustomize
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: edpm-nodeset-values-ceph
+  annotations:
+    config.kubernetes.io/local-config: "true"
+data:
+  nodeset:
+    services:
+      - bootstrap
+      - download-cache
+      - configure-network
+      - validate-network
+      - install-os
+      - configure-os
+      - ssh-known-hosts
+      - run-os
+      - reboot-os
+      - install-certs
+      - ceph-client
+      - ovn
+      - neutron-metadata
+      - libvirt
+      - nova-custom-ceph
+  nova:
+    ceph:
+      conf: |
+        [libvirt]
+        images_type=rbd
+        images_rbd_pool=vms
+        images_rbd_ceph_conf=/etc/ceph/ceph.conf
+        images_rbd_glance_store_name=default_backend
+        images_rbd_glance_copy_poll_interval=15
+        images_rbd_glance_copy_timeout=600
+        rbd_user=openstack
+        rbd_secret_uuid={{ lookup('file', ceph_config_local_path + '/ceph.conf') | regex_search('fsid\\s*=\\s*([a-f0-9-]+)', '\\1') | first | trim }}
+  extraMounts:
+    - extraVolType: Ceph
+      volumes:
+        - name: ceph
+          secret:
+            secretName: ceph-conf-files
+      mounts:
+        - name: ceph
+          mountPath: "/etc/ceph"
+          readOnly: true

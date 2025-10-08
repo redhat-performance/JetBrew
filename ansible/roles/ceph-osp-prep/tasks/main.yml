@@ -1,0 +1,16 @@
+---
+- name: Verify Ceph cluster is healthy
+  shell: |
+    cephadm shell -- ceph health
+  register: ceph_health
+  changed_when: false
+  failed_when: ceph_health.rc != 0 or 'HEALTH_OK' not in ceph_health.stdout
+
+- name: Create Ceph pools for OpenStack
+  include_tasks: includes/create_pools.yml
+
+- name: Create CephX key for OpenStack
+  include_tasks: includes/create_cephx_key.yml
+
+- name: Export Ceph configuration and keyring
+  include_tasks: includes/export_config.yml

@@ -1,0 +1,10 @@
+---
+# Ceph pools for OpenStack services
+ceph_pools:
+  - vms
+  - volumes
+  - images
+  - backups
+
+# CephX client name for OpenStack
+ceph_client_name: openstack
