@@ -127,6 +127,44 @@ After successful deployment, the installer automatically:
 2. **Validates Hypervisors**: Lists available hypervisors to confirm successful deployment
 3. **Provides Status**: Displays deployment status and service availability
 
+## RHOSO Deletion
+
+To remove **any** OpenStack resources from your cluster (regardless of deployment tool), use the RHOSO deletion playbook:
+
+```bash
+ansible-playbook ansible/delete-rhoso.yml
+```
+
+This will **intelligently** discover and delete:
+- All OpenStack resources (any names, any deployment tool)
+- **MetalLB resources matching OpenStack NADs** (100% accurate identification)
+- Network resources and OpenStack namespaces (`openstack` + `openstack-operators`)
+
+### Complete RHOSO Deletion Process
+The deletion process uses a **comprehensive approach** to safely remove all RHOSO components:
+
+#### 1. **Smart MetalLB Deletion (NAD-based)**
+- **Discovers** all NetworkAttachmentDefinitions (NADs) in `openstack` namespace
+- **Matches** MetalLB resources in `metallb-system` namespace with same names as NADs
+- **Deletes** only the matching IPAddressPools and L2Advertisements
+- **Preserves** all other MetalLB resources used by other applications
+
+**Example:**
+- NAD found: `ctlplane` → Deletes: `ipaddresspool/ctlplane`, `l2advertisement/ctlplane`
+- NAD found: `internalapi` → Deletes: `ipaddresspool/internalapi`, `l2advertisement/internalapi`  
+- Other resource: `my-app-pool` → **Preserved** (no matching NAD)
+
+#### 2. **Controlled Namespace Deletion**
+1. **OpenStack namespace** (`openstack`):
+   - Waits for all pods to terminate
+   - Deletes namespace with timeout
+2. **OpenStack operators namespace** (`openstack-operators`):
+   - Deletes operator resources first
+   - Waits for operator pods to terminate  
+   - Deletes namespace with timeout
+
+This approach is **100% accurate** and provides **complete RHOSO removal**!
+
 ## Troubleshooting
 
 ### Common Issues

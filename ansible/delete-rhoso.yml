@@ -1,0 +1,33 @@
+---
+# RHOSO (Red Hat OpenStack Services on OpenShift) Deletion Playbook
+# 
+# This playbook safely removes all RHOSO resources from an OpenShift cluster
+# including OpenStack CRs, MetalLB resources, networks, and both OpenStack namespaces
+# (openstack and openstack-operators).
+# 
+# Usage: ansible-playbook delete-rhoso.yml
+#
+- hosts: localhost
+  gather_facts: false
+  environment: "{{ ocp_environment }}"
+  
+  roles:
+    - cleanup-openstack
+
+  post_tasks:
+    - name: RHOSO deletion completion message
+      debug:
+        msg: |
+          RHOSO (Red Hat OpenStack Services on OpenShift) deletion completed!
+          
+          Both OpenStack namespaces and all resources have been removed:
+          ✓ openstack namespace
+          ✓ openstack-operators namespace
+          
+          To redeploy RHOSO, run:
+          ansible-playbook main.yml
+          
+          Verify that all resources have been properly removed:
+          oc get namespace openstack openstack-operators  # Should return "not found"
+          oc get crd | grep openstack  # Should show no OpenStack CRDs remain
+          oc get ipaddresspool,l2advertisement -n metallb-system  # Check MetalLB cleanup
