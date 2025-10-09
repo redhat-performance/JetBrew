@@ -41,13 +41,12 @@ data:
           # Issue #2 - edpm_bootstrap fails if we don't update 'container-selinux'
           dnf update -y
 
-          sudo dnf install python3-pyroute2 --disableexcludes=all --disablerepo="*" --enablerepo="rhoso-18.0-rhel-9-nightly-compose" -y
           rpm -ivh --nosignature http://download.devel.redhat.com/rcm-guest/puddles/OpenStack/rhos-release/rhos-release-latest.noarch.rpm
           rhos-release ceph-7.1-rhel-9 -r 9.4
           curl -o /etc/yum.repos.d/delorean.repo https://osp-trunk.hosted.upshift.rdu2.redhat.com/rhel9-osp18/current-podified/delorean.repo
           echo "[osptrunk-candidate-deps]" >> "/etc/yum.repos.d/osptrunk-candidate-deps.repo"
           echo "name=osptrunk-candidate-deps" >> "/etc/yum.repos.d/osptrunk-candidate-deps.repo"
-          echo "baseurl=http://download.eng.bos.redhat.com/brewroot/repos/rhos-18.0-rhel-9-trunk-candidate/latest/x86_64/" >> "/etc/yum.repos.d/osptrunk-candidate-deps.repo"
+          echo "baseurl=https://download-01.beak-001.prod.iad2.dc.redhat.com/brewroot/repos/rhos-18.0-rhel-9-trunk-candidate/latest/x86_64/" >> "/etc/yum.repos.d/osptrunk-candidate-deps.repo"
           echo "gpgcheck=0" >> /etc/yum.repos.d/osptrunk-candidate-deps.repo
           echo "enabled=1" >> /etc/yum.repos.d/osptrunk-candidate-deps.repo
           echo "priority=1" >> /etc/yum.repos.d/osptrunk-candidate-deps.repo
@@ -59,6 +58,8 @@ data:
           echo "enabled=1" >> /etc/yum.repos.d/rhosotrunk-compose-deps.repo
           echo "priority=1" >> /etc/yum.repos.d/rhosotrunk-compose-deps.repo
           echo "includepkgs=rhoso-release-18*" >> /etc/yum.repos.d/rhosotrunk-compose-deps.repo
+
+          sudo dnf install python3-pyroute2 --disableexcludes=all --disablerepo="*" --enablerepo="rhoso-18.0-rhel-9-nightly-compose" -y
         timesync_ntp_servers:
           - hostname: pool.ntp.org
         # edpm_network_config
