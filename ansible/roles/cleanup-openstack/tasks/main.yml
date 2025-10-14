@@ -1,0 +1,413 @@
+---
+- name: Delete OpenStack Data Plane Deployments (osdpd)
+  block:
+    - name: Get all osdpd resources
+      shell: |
+        oc get osdpd -n openstack --no-headers --ignore-not-found -o name
+      register: osdpd_list
+      changed_when: false
+      failed_when: false
+
+    - name: Delete all osdpd resources
+      shell: |
+        oc delete osdpd --all -n openstack --wait=true --timeout=300s
+      when: osdpd_list.stdout_lines | length > 0
+      register: osdpd_delete
+      failed_when: false
+
+    - name: Wait for all osdpd deletions to complete
+      shell: |
+        oc wait --for=delete osdpd --all -n openstack --timeout=300s
+      when: osdpd_list.stdout_lines | length > 0
+      failed_when: false
+
+    - name: Display osdpd deletion status
+      debug:
+        msg: "OpenStack Data Plane Deployment (osdpd) deletion completed - {{ osdpd_list.stdout_lines | length }} resources deleted"
+      when: osdpd_list.stdout_lines | length > 0
+
+- name: Delete OpenStack Data Plane NodeSets (osdpns)
+  block:
+    - name: Get all osdpns resources
+      shell: |
+        oc get osdpns -n openstack --no-headers --ignore-not-found -o name
+      register: osdpns_list
+      changed_when: false
+      failed_when: false
+
+    - name: Delete all osdpns resources
+      shell: |
+        oc delete osdpns --all -n openstack --wait=true --timeout=300s
+      when: osdpns_list.stdout_lines | length > 0
+      register: osdpns_delete
+      failed_when: false
+
+    - name: Wait for all osdpns deletions to complete
+      shell: |
+        oc wait --for=delete osdpns --all -n openstack --timeout=300s
+      when: osdpns_list.stdout_lines | length > 0
+      failed_when: false
+
+    - name: Display osdpns deletion status
+      debug:
+        msg: "OpenStack Data Plane NodeSet (osdpns) deletion completed - {{ osdpns_list.stdout_lines | length }} resources deleted"
+      when: osdpns_list.stdout_lines | length > 0
+
+- name: Delete OpenStack Control Planes (osctlplane)
+  block:
+    - name: Get all osctlplane resources
+      shell: |
+        oc get osctlplane -n openstack --no-headers --ignore-not-found -o name
+      register: osctlplane_list
+      changed_when: false
+      failed_when: false
+
+    - name: Delete all osctlplane resources
+      shell: |
+        oc delete osctlplane --all -n openstack --wait=true --timeout=600s
+      when: osctlplane_list.stdout_lines | length > 0
+      register: osctlplane_delete
+      failed_when: false
+
+    - name: Wait for all osctlplane deletions to complete
+      shell: |
+        oc wait --for=delete osctlplane --all -n openstack --timeout=600s
+      when: osctlplane_list.stdout_lines | length > 0
+      failed_when: false
+
+    - name: Display osctlplane deletion status
+      debug:
+        msg: "OpenStack Control Plane (osctlplane) deletion completed - {{ osctlplane_list.stdout_lines | length }} resources deleted"
+      when: osctlplane_list.stdout_lines | length > 0
+
+- name: Clean up OpenStack-related MetalLB resources (DYNAMIC NAD-based approach)
+  block:
+    - name: Display MetalLB dynamic cleanup approach
+      debug:
+        msg: |
+          SMART CLEANUP: Using NetworkAttachmentDefinitions (NADs) from openstack namespace
+          to identify corresponding MetalLB resources in metallb-system namespace.
+          This ensures we only delete MetalLB resources that belong to OpenStack networks.
+
+    - name: Get all NetworkAttachmentDefinitions from openstack namespace
+      shell: |
+        oc get network-attachment-definitions -n openstack --no-headers --ignore-not-found -o name | sed 's|network-attachment-definition/||' || true
+      register: openstack_nads
+      changed_when: false
+      failed_when: false
+
+    - name: Display discovered OpenStack NADs
+      debug:
+        msg: "OpenStack NetworkAttachmentDefinitions found: {{ openstack_nads.stdout_lines }}"
+      when: openstack_nads is defined and openstack_nads.stdout_lines is defined and openstack_nads.stdout_lines | length > 0
+
+    - name: Find matching IPAddressPools in metallb-system based on NAD names
+      shell: |
+        nad_names="{{ openstack_nads.stdout_lines | join(' ') }}"
+        matching_pools=""
+        for nad in $nad_names; do
+          pool=$(oc get ipaddresspool -n metallb-system --no-headers --ignore-not-found -o name | grep "/$nad$" || true)
+          if [ -n "$pool" ]; then
+            matching_pools="$matching_pools $pool"
+          fi
+        done
+        echo "$matching_pools" | xargs -n1 | sort | uniq || true
+      register: matching_ipaddresspools
+      changed_when: false
+      failed_when: false
+      when: openstack_nads is defined and openstack_nads.stdout_lines is defined and openstack_nads.stdout_lines | length > 0
+
+    - name: Find matching L2Advertisements in metallb-system based on NAD names
+      shell: |
+        nad_names="{{ openstack_nads.stdout_lines | join(' ') }}"
+        matching_l2ads=""
+        for nad in $nad_names; do
+          l2ad=$(oc get l2advertisement -n metallb-system --no-headers --ignore-not-found -o name | grep -E "/$nad$|/$nad-" || true)
+          if [ -n "$l2ad" ]; then
+            matching_l2ads="$matching_l2ads $l2ad"
+          fi
+        done
+        echo "$matching_l2ads" | xargs -n1 | sort | uniq || true
+      register: matching_l2advertisements
+      changed_when: false
+      failed_when: false
+      when: openstack_nads is defined and openstack_nads.stdout_lines is defined and openstack_nads.stdout_lines | length > 0
+
+    - name: Display matching MetalLB resources found
+      debug:
+        msg: |
+          MetalLB resources matching OpenStack NADs:
+          IPAddressPools to delete: {{ matching_ipaddresspools.stdout_lines if (matching_ipaddresspools is defined and matching_ipaddresspools.stdout_lines is defined) else [] }}
+          L2Advertisements to delete: {{ matching_l2advertisements.stdout_lines if (matching_l2advertisements is defined and matching_l2advertisements.stdout_lines is defined) else [] }}
+      when: openstack_nads is defined and openstack_nads.stdout_lines is defined and openstack_nads.stdout_lines | length > 0
+
+    - name: List all MetalLB resources for comparison
+      shell: |
+        echo "=== All MetalLB resources in metallb-system namespace ==="
+        echo "IPAddressPools:"
+        oc get ipaddresspool -n metallb-system --no-headers --ignore-not-found -o name 2>/dev/null || echo "  None found"
+        echo "L2Advertisements:" 
+        oc get l2advertisement -n metallb-system --no-headers --ignore-not-found -o name 2>/dev/null || echo "  None found"
+        echo "========================================================="
+      register: all_metallb_resources
+      changed_when: false
+      failed_when: false
+
+    - name: Display all MetalLB resources for comparison
+      debug:
+        msg: "{{ all_metallb_resources.stdout_lines }}"
+
+    - name: Delete NAD-matched IPAddressPool resources
+      shell: |
+        for pool in {{ matching_ipaddresspools.stdout_lines | join(' ') }}; do
+          echo "Deleting OpenStack-related IPAddressPool: $pool"
+          oc delete "$pool" -n metallb-system --wait=true --timeout=300s
+        done
+      when: 
+        - matching_ipaddresspools is defined 
+        - matching_ipaddresspools.stdout_lines is defined
+        - matching_ipaddresspools.stdout_lines | length > 0
+      failed_when: false
+
+    - name: Delete NAD-matched L2Advertisement resources
+      shell: |
+        for l2ad in {{ matching_l2advertisements.stdout_lines | join(' ') }}; do
+          echo "Deleting OpenStack-related L2Advertisement: $l2ad"
+          oc delete "$l2ad" -n metallb-system --wait=true --timeout=300s
+        done
+      when: 
+        - matching_l2advertisements is defined
+        - matching_l2advertisements.stdout_lines is defined
+        - matching_l2advertisements.stdout_lines | length > 0
+      failed_when: false
+
+    - name: Display NAD-based MetalLB cleanup status
+      debug:
+        msg: |
+          MetalLB NAD-based cleanup completed:
+          - OpenStack NADs discovered: {{ openstack_nads.stdout_lines | length if (openstack_nads is defined and openstack_nads.stdout_lines is defined) else 0 }}
+          - IPAddressPools deleted: {{ matching_ipaddresspools.stdout_lines | length if (matching_ipaddresspools is defined and matching_ipaddresspools.stdout_lines is defined) else 0 }}
+          - L2Advertisements deleted: {{ matching_l2advertisements.stdout_lines | length if (matching_l2advertisements is defined and matching_l2advertisements.stdout_lines is defined) else 0 }}
+          
+          This method ensures only MetalLB resources corresponding to OpenStack
+          NetworkAttachmentDefinitions are deleted, preserving other applications' resources.
+
+- name: Clean up networking resources
+  block:
+    - name: Get all OpenStack network CRs
+      shell: |
+        oc api-resources --namespaced=true -o name | grep -E 'network|nncp' | xargs -I {} oc get {} -n openstack --no-headers --ignore-not-found -o name 2>/dev/null | grep -v '^$' || true
+      register: network_resources_check
+      changed_when: false
+      failed_when: false
+
+    - name: Delete all OpenStack network CRs in openstack namespace
+      shell: |
+        oc api-resources --namespaced=true -o name | grep -E 'network|nncp' | xargs -I {} oc delete {} --all -n openstack --wait=true --timeout=300s 2>/dev/null || true
+      when: network_resources_check.stdout_lines | length > 0
+      failed_when: false
+
+    - name: Get all NNCPs with OpenStack labels
+      shell: |
+        oc get nncp -l osp/nncm-config-type --no-headers --ignore-not-found -o name
+      register: nncp_osp_check
+      changed_when: false
+      failed_when: false
+
+    - name: Delete NNCPs with OpenStack labels
+      shell: |
+        oc delete nncp -l osp/nncm-config-type --wait=true --timeout=300s
+      when: nncp_osp_check.stdout_lines | length > 0
+      failed_when: false
+
+    - name: Display network cleanup status
+      debug:
+        msg: "Network resources cleanup completed - {{ network_resources_check.stdout_lines | length + nncp_osp_check.stdout_lines | length }} resources deleted"
+
+- name: Clean up all remaining OpenStack resources
+  block:
+    - name: Get all OpenStack CRDs
+      shell: |
+        oc get crd -o name | grep -E 'openstack|osp-director' | sed 's|customresourcedefinition.apiextensions.k8s.io/||'
+      register: openstack_crds
+      changed_when: false
+      failed_when: false
+
+    - name: Get all resources for each OpenStack CRD in openstack namespace
+      shell: |
+        for crd in {{ openstack_crds.stdout_lines | join(' ') }}; do
+          oc get "$crd" -n openstack --no-headers --ignore-not-found -o name 2>/dev/null || true
+        done | grep -v '^$' || true
+      register: remaining_openstack_resources
+      changed_when: false
+      failed_when: false
+      when: openstack_crds.stdout_lines | length > 0
+
+    - name: Delete all remaining OpenStack resources
+      shell: |
+        for crd in {{ openstack_crds.stdout_lines | join(' ') }}; do
+          echo "Deleting all $crd resources in openstack namespace..."
+          oc delete "$crd" --all -n openstack --wait=true --timeout=300s 2>/dev/null || true
+        done
+      when: 
+        - openstack_crds.stdout_lines | length > 0
+        - remaining_openstack_resources.stdout_lines | length > 0
+      failed_when: false
+
+    - name: Get any remaining resources in openstack namespace
+      shell: |
+        oc get all -n openstack --no-headers --ignore-not-found 2>/dev/null | grep -v '^$' || true
+      register: final_remaining_resources
+      changed_when: false
+      failed_when: false
+
+    - name: Display remaining resources summary
+      debug:
+        msg: |
+          OpenStack resource cleanup summary:
+          - OpenStack CRDs found: {{ openstack_crds.stdout_lines | length }}
+          - OpenStack resources deleted: {{ remaining_openstack_resources.stdout_lines | length if remaining_openstack_resources is defined else 0 }}
+          - Remaining resources in namespace: {{ final_remaining_resources.stdout_lines | length }}
+          {% if final_remaining_resources.stdout_lines | length > 0 %}
+          Remaining resources: {{ final_remaining_resources.stdout_lines }}
+          {% endif %}
+
+- name: Delete OpenStack namespace
+  block:
+    - name: Wait for all pods in openstack namespace to terminate
+      shell: |
+        timeout 300 bash -c 'while oc get pods -n openstack --no-headers --ignore-not-found 2>/dev/null | grep -v "Terminating" | grep -q .; do echo "Waiting for pods to terminate..."; sleep 10; done' || true
+      changed_when: false
+      failed_when: false
+
+    - name: Check if openstack namespace exists
+      shell: |
+        oc get namespace openstack --no-headers --ignore-not-found
+      register: namespace_check
+      changed_when: false
+      failed_when: false
+
+    - name: Delete openstack namespace
+      shell: |
+        oc delete namespace openstack --wait=true --timeout=300s
+      when: namespace_check.stdout != ""
+      register: namespace_delete
+      failed_when: false
+
+    - name: Wait for openstack namespace deletion
+      shell: |
+        oc wait --for=delete namespace/openstack --timeout=300s
+      when: namespace_check.stdout != ""
+      failed_when: false
+
+    - name: Display namespace deletion status
+      debug:
+        msg: "OpenStack namespace has been deleted"
+      when: namespace_check.stdout != ""
+
+- name: Delete OpenStack operators namespace
+  block:
+    - name: Check if openstack-operators namespace exists
+      shell: |
+        oc get namespace openstack-operators --no-headers --ignore-not-found
+      register: operators_namespace_check
+      changed_when: false
+      failed_when: false
+
+    - name: Get all OpenStack operator resources in openstack-operators namespace
+      shell: |
+        oc api-resources --namespaced=true -o name | xargs -I {} oc get {} -n openstack-operators --no-headers --ignore-not-found -o name 2>/dev/null | grep -E 'openstack|osp' || true
+      register: operators_resources_check
+      changed_when: false
+      failed_when: false
+      when: operators_namespace_check.stdout != ""
+
+    - name: Display OpenStack operator resources found
+      debug:
+        msg: "OpenStack operator resources in openstack-operators namespace: {{ operators_resources_check.stdout_lines if operators_resources_check is defined else [] }}"
+      when: operators_namespace_check.stdout != ""
+
+    - name: Delete all OpenStack operator resources in openstack-operators namespace
+      shell: |
+        # Delete OpenStack CRs first
+        for resource_type in $(oc api-resources --namespaced=true -o name | grep -E 'openstack|osp'); do
+          echo "Checking for $resource_type in openstack-operators namespace..."
+          if oc get "$resource_type" -n openstack-operators --no-headers --ignore-not-found 2>/dev/null | grep -q .; then
+            echo "Deleting all $resource_type resources in openstack-operators namespace..."
+            oc delete "$resource_type" --all -n openstack-operators --wait=true --timeout=300s 2>/dev/null || true
+          fi
+        done
+        
+        # Delete deployments, services, configmaps, secrets
+        echo "Deleting other operator resources..."
+        oc delete deployments,services,configmaps,secrets --all -n openstack-operators --wait=true --timeout=300s 2>/dev/null || true
+      when: 
+        - operators_namespace_check.stdout != ""
+        - operators_resources_check is defined
+        - operators_resources_check.stdout_lines | length > 0
+      failed_when: false
+
+    - name: Wait for all pods in openstack-operators namespace to terminate
+      shell: |
+        timeout 300 bash -c 'while oc get pods -n openstack-operators --no-headers --ignore-not-found 2>/dev/null | grep -v "Terminating" | grep -q .; do echo "Waiting for operator pods to terminate..."; sleep 10; done' || true
+      changed_when: false
+      failed_when: false
+      when: operators_namespace_check.stdout != ""
+
+    - name: Delete openstack-operators namespace
+      shell: |
+        oc delete namespace openstack-operators --wait=true --timeout=300s
+      when: operators_namespace_check.stdout != ""
+      register: operators_namespace_delete
+      failed_when: false
+
+    - name: Wait for openstack-operators namespace deletion
+      shell: |
+        oc wait --for=delete namespace/openstack-operators --timeout=300s
+      when: operators_namespace_check.stdout != ""
+      failed_when: false
+
+    - name: Display operators namespace deletion status
+      debug:
+        msg: "OpenStack operators namespace has been deleted"
+      when: operators_namespace_check.stdout != ""
+
+- name: Verify cleanup completion
+  block:
+    - name: Check if openstack namespace still exists
+      shell: |
+        oc get namespace openstack --no-headers --ignore-not-found
+      register: final_namespace_check
+      changed_when: false
+      failed_when: false
+
+    - name: Check if openstack-operators namespace still exists
+      shell: |
+        oc get namespace openstack-operators --no-headers --ignore-not-found
+      register: final_operators_namespace_check
+      changed_when: false
+      failed_when: false
+
+    - name: Display comprehensive cleanup summary
+      debug:
+        msg: |
+          ==========================================
+          RHOSO Cleanup Completed Successfully!
+          ==========================================
+          
+          Resources Deleted:
+          - OpenStack Data Plane Deployments (osdpd): {{ osdpd_list.stdout_lines | length if (osdpd_list is defined and osdpd_list.stdout_lines is defined) else 0 }}
+          - OpenStack Data Plane NodeSets (osdpns): {{ osdpns_list.stdout_lines | length if (osdpns_list is defined and osdpns_list.stdout_lines is defined) else 0 }}
+          - OpenStack Control Planes (osctlplane): {{ osctlplane_list.stdout_lines | length if (osctlplane_list is defined and osctlplane_list.stdout_lines is defined) else 0 }}
+          - MetalLB resources (NAD-matched): {{ (matching_ipaddresspools.stdout_lines | length + matching_l2advertisements.stdout_lines | length) if (matching_ipaddresspools is defined and matching_ipaddresspools.stdout_lines is defined and matching_l2advertisements is defined and matching_l2advertisements.stdout_lines is defined) else 0 }}
+          - Network resources: {{ (network_resources_check.stdout_lines | length + nncp_osp_check.stdout_lines | length) if (network_resources_check is defined and network_resources_check.stdout_lines is defined and nncp_osp_check is defined and nncp_osp_check.stdout_lines is defined) else 0 }}
+          - Other OpenStack CRs: {{ remaining_openstack_resources.stdout_lines | length if (remaining_openstack_resources is defined and remaining_openstack_resources.stdout_lines is defined) else 0 }}
+          
+          Namespaces:
+          - OpenStack namespace: {% if final_namespace_check.stdout == "" %}✓ Deleted{% else %}✗ Still exists (may need manual cleanup){% endif %}
+          - OpenStack operators namespace: {% if final_operators_namespace_check.stdout == "" %}✓ Deleted{% else %}✗ Still exists (may need manual cleanup){% endif %}
+          
+          Total OpenStack CRDs found: {{ openstack_crds.stdout_lines | length if (openstack_crds is defined and openstack_crds.stdout_lines is defined) else 0 }}
+          
+          This cleanup role works with any OpenStack deployment tool and provides
+          complete RHOSO removal including operators!
