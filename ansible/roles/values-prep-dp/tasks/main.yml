@@ -117,6 +117,17 @@
     src: edpm-nodeset-values.yml.j2
     dest: "{{ dt_path }}/examples/dt/perfscale/scalelab/edpm/nodeset/values.yaml"
 
+- name: generate nodeset values with Ceph
+  template:
+    src: edpm-nodeset-values-ceph.yml.j2
+    dest: "{{ dt_path }}/examples/dt/perfscale/scalelab/edpm/nodeset/values-ceph.yaml"
+  when: ceph_backend | default(false) | bool
+
+- name: Render kustomization.yaml for dataplane nodeset
+  template:
+    src: kustomization.yaml.j2
+    dest: "{{ dt_path }}/examples/dt/perfscale/scalelab/edpm/nodeset/kustomization.yaml"
+
 - name: node names
   debug:
     msg: "{{ edpm_nodes }}"
