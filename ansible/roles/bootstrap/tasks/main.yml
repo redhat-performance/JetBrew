@@ -19,23 +19,8 @@
   shell:
     mv kustomize /usr/bin/.
 
-- name: download ocp_inventry file(scale)
-  uri:
-    url: "https://wiki.scalelab.redhat.com/instack/{{ cloud }}_ocpinventory.json"
-    return_content: true
-  register: ocpinventory_scale
-  when: lab == 'scalelab'
-
-- name: download ocp_inventry file(alias)
-  uri:
-    url: "https://wiki.rdu3.labs.perfscale.redhat.com/instack/{{ cloud }}_ocpinventory.json"
-    return_content: true
-  register: ocpinventory_alias
-  when: lab == 'performancelab'
-
-- name: set fact ocp inventory
-  set_fact:
-    ocp_inventry: "{{ ocpinventory_scale if lab == 'scalelab' else ocpinventory_alias }}"
+- name: Download or load OCP inventory
+  include_tasks: includes/download_ocp_inventory.yml
 
 - name: enable ip forward for ovn-kubernets
   shell: |
