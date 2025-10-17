@@ -1,0 +1,41 @@
+---
+# This task file downloads OCP inventory from scalelab or performancelab
+# It only downloads if the file is not present locally
+
+- name: Check if local OCP inventory file exists
+  stat:
+    path: "{{ ocp_inventory_local_path | default('') }}"
+  register: local_inventory_file
+  when: ocp_inventory_local_path is defined and ocp_inventory_local_path | length > 0
+
+- name: Read local OCP inventory file if present
+  set_fact:
+    ocp_inventry:
+      content: "{{ lookup('file', ocp_inventory_local_path) }}"
+  when:
+    - ocp_inventory_local_path is defined
+    - ocp_inventory_local_path | length > 0
+    - local_inventory_file.stat.exists
+
+- name: Download OCP inventory file (scalelab)
+  uri:
+    url: "https://wiki.scalelab.redhat.com/instack/{{ cloud }}_ocpinventory.json"
+    return_content: true
+  register: ocpinventory_scale
+  when:
+    - lab == 'scalelab'
+    - not (local_inventory_file.stat.exists | default(false))
+
+- name: Download OCP inventory file (performancelab)
+  uri:
+    url: "https://wiki.rdu3.labs.perfscale.redhat.com/instack/{{ cloud }}_ocpinventory.json"
+    return_content: true
+  register: ocpinventory_alias
+  when:
+    - lab == 'performancelab'
+    - not (local_inventory_file.stat.exists | default(false))
+
+- name: Set fact for OCP inventory (from download)
+  set_fact:
+    ocp_inventry: "{{ ocpinventory_scale if lab == 'scalelab' else ocpinventory_alias }}"
+  when: not (local_inventory_file.stat.exists | default(false))
