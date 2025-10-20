@@ -1,0 +1,16 @@
+---
+- name: Create Ceph pools for OpenStack
+  shell: |
+    cephadm shell -- ceph osd pool create {{ item }}
+  loop: "{{ ceph_pools }}"
+  register: pool_create_result
+  changed_when: "'created' in pool_create_result.stdout"
+  failed_when: pool_create_result.rc != 0
+
+- name: Enable RBD application on pools
+  shell: |
+    cephadm shell -- ceph osd pool application enable {{ item }} rbd
+  loop: "{{ ceph_pools }}"
+  register: pool_enable_result
+  changed_when: "'enabled' in pool_enable_result.stdout"
+  failed_when: pool_enable_result.rc != 0
