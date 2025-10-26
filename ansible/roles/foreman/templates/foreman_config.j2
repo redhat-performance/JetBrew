@@ -1,0 +1,11 @@
+:modules:
+    - hammer_cli_foreman
+
+:foreman:
+    :enable_module: true
+    :host: '{{ foreman_instance }}'
+    :username: '{{ lab_cloud }}'
+    :password: '{{ pswd }}'
+
+:log_dir: '~/.hammer/log'
+:log_level: 'error'
