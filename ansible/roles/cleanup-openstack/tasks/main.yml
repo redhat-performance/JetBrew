@@ -222,7 +222,7 @@
 
     - name: Display network cleanup status
       debug:
-        msg: "Network resources cleanup completed - {{ network_resources_check.stdout_lines | length + nncp_osp_check.stdout_lines | length }} resources deleted"
+        msg: "Network resources cleanup completed - {{ (network_resources_check.stdout_lines | length if (network_resources_check is defined and network_resources_check.stdout_lines is defined) else 0) + (nncp_osp_check.stdout_lines | length if (nncp_osp_check is defined and nncp_osp_check.stdout_lines is defined) else 0) }} resources deleted"
 
 - name: Clean up all remaining OpenStack resources
   block:
@@ -265,10 +265,10 @@
       debug:
         msg: |
           OpenStack resource cleanup summary:
-          - OpenStack CRDs found: {{ openstack_crds.stdout_lines | length }}
-          - OpenStack resources deleted: {{ remaining_openstack_resources.stdout_lines | length if remaining_openstack_resources is defined else 0 }}
-          - Remaining resources in namespace: {{ final_remaining_resources.stdout_lines | length }}
-          {% if final_remaining_resources.stdout_lines | length > 0 %}
+          - OpenStack CRDs found: {{ openstack_crds.stdout_lines | length if (openstack_crds is defined and openstack_crds.stdout_lines is defined) else 0 }}
+          - OpenStack resources deleted: {{ remaining_openstack_resources.stdout_lines | length if (remaining_openstack_resources is defined and remaining_openstack_resources.stdout_lines is defined) else 0 }}
+          - Remaining resources in namespace: {{ final_remaining_resources.stdout_lines | length if (final_remaining_resources is defined and final_remaining_resources.stdout_lines is defined) else 0 }}
+          {% if final_remaining_resources is defined and final_remaining_resources.stdout_lines is defined and final_remaining_resources.stdout_lines | length > 0 %}
           Remaining resources: {{ final_remaining_resources.stdout_lines }}
           {% endif %}
 
