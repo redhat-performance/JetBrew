@@ -1,0 +1,5 @@
+---
+# Starting node index for compute node provisioning (0-indexed)
+# Default is 4 (starts from 5th node: 1 bastion + 3 OCP nodes = index 4)
+# Set this in group_vars/all.yml to start provisioning from a different node
+compute_start_node_index: 4
