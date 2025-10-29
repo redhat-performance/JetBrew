@@ -21,6 +21,8 @@
     boot_mode_result: >-
       {%- if item is match('.*(1029u|1029p|5039ms|6018r|6029p|6029r|6048p|6048r|6049p).*') -%}
         Bios
+      {%- elif item is match('.*r660.*') -%}
+        UEFI
       {%- else -%}
         {%- set badfish_result = lookup('pipe', 'podman run quay.io/quads/badfish:latest --get-bios-attribute --attribute BootMode -H mgmt-' + item + ' -u ' + foreman_user + ' -p ' + foreman_password + ' -o json 2>&1 | jq -r .CurrentValue') -%}
         {%- if badfish_result and badfish_result != 'null' and badfish_result != '' -%}
@@ -88,10 +90,18 @@
   loop: "{{ node_boot_modes }}"
 
 
+- name: Get SSH host keys for all nodes
+  shell: |
+    ssh-keyscan -t ecdsa,ed25519,rsa {{ item.node }} 2>/dev/null
+  loop: "{{ node_boot_modes }}"
+  register: ssh_keys_result
+  changed_when: false
+
+
 - name: Add SSH keys to known_hosts for all nodes
   ansible.builtin.known_hosts:
-    name: "{{ item.node }}"
-    fetch_hostkeys: yes
+    name: "{{ item.item.node }}"
+    key: "{{ item.stdout }}"
     state: present
-  loop: "{{ node_boot_modes }}"
-  
+  loop: "{{ ssh_keys_result.results }}"
+  when: item.stdout is defined and item.stdout != ""
