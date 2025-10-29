@@ -3,9 +3,9 @@
 
 :foreman:
     :enable_module: true
-    :host: '{{ foreman_instance }}'
-    :username: '{{ foreman_username | default(cloud) }}'
-    :password: '{{ foreman_password | default(password) }}'
+    :host: '{{ foreman_url }}'
+    :username: '{{ cloud }}'
+    :password: '{{ foreman_password }}'
 
 :log_dir: '~/.hammer/log'
 :log_level: 'error'
