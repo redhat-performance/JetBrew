@@ -1,4 +1,9 @@
 ---
+- name: Flush iptables rules before deployment
+  command: iptables -F
+  become: yes
+  ignore_errors: yes
+
 - name: clean up the dt_path
   file:
     path: "{{ dt_path }}"
