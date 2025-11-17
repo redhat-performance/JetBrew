@@ -56,10 +56,15 @@ data:
   swift:
     enabled: true
   telemetry:
-    enabled: true
+    enabled: {{ telemetry | default(true) }}
     template:
+      metricStorage:
+        enabled: {{ telemetry | default(true) }}
+        dataplaneNetwork: ctlplane
+        networkAttachments:
+          - ctlplane
       ceilometer:
-        enabled: true
+        enabled: {{ telemetry | default(true) }}
   nova:
     schedulerServiceTemplate:
       customServiceConfig: |
