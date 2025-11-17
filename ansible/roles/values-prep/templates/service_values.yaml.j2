@@ -70,3 +70,23 @@ data:
       customServiceConfig: |
         [filter_scheduler]
         enabled_filtes = AvailabilityZoneFilter,ComputeFilter,ComputeCapabilitiesFilter,ImagePropertiesFilter,ServerGroupAntiAffinityFilter,ServerGroupAffinityFilter,PciPassthroughFilter,NUMATopologyFilter,AggregateInstanceExtraSpecsFilter
+  octavia:
+    enabled: true
+    amphoraImageContainerImage: registry.redhat.io/rhoso/octavia-amphora-image-rhel9:18.0.4-2
+    apacheContainerImage: registry.redhat.io/ubi9/httpd-24:latest
+    octaviaAPI:
+      customServiceConfig: '# add your customization here'
+      networkAttachments:
+        - internalapi
+    octaviaHousekeeping:
+      customServiceConfig: '# add your customization here'
+      networkAttachments:
+        - octavia
+    octaviaHealthManager:
+      customServiceConfig: '# add your customization here'
+      networkAttachments:
+        - octavia
+    octaviaWorker:
+      customServiceConfig: '# add your customization here'
+      networkAttachments:
+        - octavia
