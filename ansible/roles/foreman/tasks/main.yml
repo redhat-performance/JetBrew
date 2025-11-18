@@ -1,0 +1,97 @@
+---
+# Foreman Role - Main Tasks
+# This role handles Foreman-related operations including EDPM node provisioning
+
+- name: Set fact for foreman_user and foreman_password
+  ansible.builtin.set_fact:
+    foreman_user: "{{ all_nodes[0].pm_user }}"
+    foreman_password: "{{ all_nodes[0].pm_password }}"
+
+
+- name: Generate Foreman configuration file
+  template:
+    src: "foreman_config.j2"
+    dest: "/tmp/foreman_config_updated_{{ cloud }}.yml"
+
+
+- name: Determine boot mode for each node
+  set_fact:
+    node_boot_modes: "{{ node_boot_modes | default([]) + [{'node': item, 'boot_mode': boot_mode_result}] }}"
+  vars:
+    boot_mode_result: >-
+      {%- if item is match('.*(1029u|1029p|5039ms|6018r|6029p|6029r|6048p|6048r|6049p).*') -%}
+        Bios
+      {%- else -%}
+        {%- set badfish_result = lookup('pipe', 'podman run quay.io/quads/badfish:latest --get-bios-attribute --attribute BootMode -H mgmt-' + item + ' -u ' + foreman_user + ' -p ' + foreman_password + ' -o json 2>&1 | jq -r .CurrentValue') -%}
+        {%- if badfish_result and badfish_result != 'null' and badfish_result != '' -%}
+          {{ badfish_result }}
+        {%- else -%}
+          UEFI
+        {%- endif -%}
+      {%- endif -%}
+  loop: "{{ edpm_nodes }}"
+
+
+- name: Update Foreman host configuration for each node
+  shell: |
+    podman run \
+      -v /tmp/foreman_config_updated_{{ cloud }}.yml:/opt/hammer/foreman_config.yml \
+      quay.io/cloud-bulldozer/foreman-cli:latest \
+      hammer \
+      -c /opt/hammer/foreman_config.yml \
+      --verify-ssl false \
+      -u {{ cloud }} \
+      -p {{ foreman_password }} \
+      host update \
+      --name {{ item.node }} \
+      --operatingsystem "{{ foreman_os }}" \
+      --pxe-loader "{{ 'PXELinux BIOS' if item.boot_mode == 'Bios' else 'PXELinux UEFI' }}" \
+      --build 1
+  loop: "{{ node_boot_modes }}"
+  register: foreman_update_results
+
+
+- name: Set boot device for SuperMicro servers
+  shell: |
+    podman run quay.io/ocp-edge-qe/ipmitool ipmitool -I lanplus -H mgmt-{{ item.node }} -U {{ foreman_user }} -P {{ foreman_password }} chassis bootdev pxe
+  loop: "{{ node_boot_modes | selectattr('boot_mode', 'equalto', 'Bios') | list }}"
+  register: supermicro_bootdev_results
+
+
+- name: Set boot device for non-SuperMicro servers
+  shell: |
+    podman run quay.io/quads/badfish:latest -H mgmt-{{ item.node }} -u {{ foreman_user }} -p {{ foreman_password }} -i config/idrac_interfaces.yml -t foreman
+  loop: "{{ node_boot_modes | rejectattr('boot_mode', 'equalto', 'Bios') | list }}"
+  register: badfish_bootdev_results
+
+
+- name: Reboot all nodes
+  shell: |
+    podman run quay.io/quads/badfish:latest --reboot-only -H mgmt-{{ item.node }} -u {{ foreman_user }} -p {{ foreman_password }}
+  loop: "{{ node_boot_modes }}"
+  register: reboot_results
+
+
+- name: Wait for nodes to be SSH accessible after reboot
+  shell: |
+    sshpass -p {{ ssh_password }} ssh -o ConnectTimeout=10 -o StrictHostKeyChecking=no -o UserKnownHostsFile=/dev/null root@{{ item.node }} 'hostname'
+  loop: "{{ node_boot_modes }}"
+  register: ssh_check_results
+  retries: 30
+  delay: 30
+  until: ssh_check_results is succeeded
+
+
+- name: Remove existing SSH keys for all nodes
+  shell: |
+    ssh-keygen -R {{ item.node }} 2>/dev/null || true
+  loop: "{{ node_boot_modes }}"
+
+
+- name: Add SSH keys to known_hosts for all nodes
+  ansible.builtin.known_hosts:
+    name: "{{ item.node }}"
+    fetch_hostkeys: yes
+    state: present
+  loop: "{{ node_boot_modes }}"
+  
