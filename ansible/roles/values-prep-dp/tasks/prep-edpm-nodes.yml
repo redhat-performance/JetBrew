@@ -27,9 +27,19 @@
   delegate_to: "{{ node.fqdn }}"
   ignore_errors: yes
 
-- name: configure ctlplane ip 
-  command: >
-    ip addr add {{ node.ip_address }}/16 dev {{ iface_0 }}
+- name: configure ctlplane ip persistently
+  shell: |
+    # Remove existing connection if it exists
+    nmcli connection delete ctlplane-{{ iface_0 }} 2>/dev/null || true
+    # Create new connection with static IP and DHCP disabled
+    nmcli connection add type ethernet \
+      con-name ctlplane-{{ iface_0 }} \
+      ifname {{ iface_0 }} \
+      ip4 {{ node.ip_address }}/16 \
+      ipv4.method manual \
+      autoconnect yes
+    # Bring up the connection
+    nmcli connection up ctlplane-{{ iface_0 }}
   become: yes
   delegate_to: "{{ node.fqdn }}"
 
