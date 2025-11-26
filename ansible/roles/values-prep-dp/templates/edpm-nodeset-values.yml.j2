@@ -65,6 +65,7 @@ data:
         # edpm_network_config
         # These vars are edpm_network_config role vars
         edpm_network_config_hide_sensitive_logs: false
+        edpm_network_config_nonconfigured_cleanup: false
         edpm_network_config_template: |
           ---
           network_config:
@@ -88,18 +89,6 @@ data:
             addresses:
 {%- raw %}
             - ip_netmask: {{ tenant_ip }}/{{ tenant_cidr }}
-{% endraw %}
-          - type: interface
-            name: {{ iface_0 }}
-            use_dhcp: false
-{%- raw %}
-            dns_servers: {{ ctlplane_dns_nameservers }}
-            domain: {{ dns_search_domains }}
-            addresses:
-            - ip_netmask: {{ ctlplane_ip }}/{{ ctlplane_cidr }}
-            routes:
-            - default: true
-              next_hop: {{ ctlplane_gateway_ip }}
           - type: ovs_bridge
             name: br-ex
             use_dhcp: false
