@@ -24,6 +24,10 @@ data:
       - neutron-metadata
       - libvirt
       - nova-custom-ceph
+{% if telemetry | default(true) %}
+      - telemetry
+      - telemetry-power-monitoring
+{% endif %}
   nova:
     ceph:
       conf: |

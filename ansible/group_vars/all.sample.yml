@@ -22,6 +22,8 @@ ocp_environment:
 # If specified and file exists, it will be used instead of downloading from lab
 # ocp_inventory_local_path: /path/to/local/ocpinventory.json
 
+# Enable telemetry (default: true)
+telemetry: true
 
 # External ceph deploy vars
 ceph_node_count: 3
