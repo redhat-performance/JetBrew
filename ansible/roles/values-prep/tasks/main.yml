@@ -14,7 +14,7 @@
 
 - name: get the second node macs (2,3 and 4th macs)
   set_fact:
-    macs: "{{ ocp_inventry.json.nodes[1].mac[1:4] }}"
+    macs: "{{ ocp_inventory.json.nodes[1].mac[1:4] }}"
 
 - name: get the ip of the first node
   command: >
