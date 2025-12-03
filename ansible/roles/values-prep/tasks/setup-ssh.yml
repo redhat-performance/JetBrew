@@ -1,9 +1,10 @@
 ---
-- name: remove bad known_host entry if any
-  shell:
-    ssh-keygen -R {{ lookup('vars', 'node_' ~ item ~ '_ip') }}
-  ignore_errors: yes
+- name: Remove bad known_host entry if any
+  ansible.builtin.command:
+    cmd: ssh-keygen -R {{ lookup('vars', 'node_' ~ item ~ '_ip') }}
+  ignore_errors: true
 
 - name: Add node to known hosts
-  shell: ssh-keyscan -H {{ lookup('vars', 'node_' ~ item ~ '_ip') }} >> ~/.ssh/known_hosts
-  ignore_errors: yes
+  ansible.builtin.shell:
+    cmd: ssh-keyscan -H {{ lookup('vars', 'node_' ~ item ~ '_ip') }} >> ~/.ssh/known_hosts
+  ignore_errors: true
