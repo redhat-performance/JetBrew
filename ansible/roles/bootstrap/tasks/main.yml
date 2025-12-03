@@ -1,48 +1,63 @@
 ---
 - name: Flush iptables rules before deployment
-  command: iptables -F
-  become: yes
-  ignore_errors: yes
+  ansible.builtin.command:
+    cmd: iptables -F
+  become: true
+  ignore_errors: true
 
-- name: clean up the dt_path
-  file:
+- name: Clean up the dt_path
+  ansible.builtin.file:
     path: "{{ dt_path }}"
     state: absent
 
-- name: clone architecture repo
-  git:
+- name: Clone architecture repository
+  ansible.builtin.git:
     repo: https://github.com/masco/architecture.git
     dest: "{{ dt_path }}"
     version: bm-ocp
-    force: yes
+    force: true
 
-- name: download kustomize lib
-  shell:
-    curl -s "https://raw.githubusercontent.com/kubernetes-sigs/kustomize/master/hack/install_kustomize.sh"  | bash
+- name: Download kustomize library
+  ansible.builtin.shell:
+    cmd: curl -s "https://raw.githubusercontent.com/kubernetes-sigs/kustomize/master/hack/install_kustomize.sh" | bash
+    chdir: /tmp
+    creates: /tmp/kustomize
 
-- name: move the kustomize to usr-bin
-  shell:
-    mv kustomize /usr/bin/.
+- name: Move kustomize to /usr/bin
+  ansible.builtin.copy:
+    src: /tmp/kustomize
+    dest: /usr/bin/kustomize
+    remote_src: true
+    mode: '0755'
+  become: true
 
 - name: Download or load OCP inventory
-  include_tasks: includes/download_ocp_inventory.yml
+  ansible.builtin.include_tasks:
+    file: includes/download_ocp_inventory.yml
 
-- name: enable ip forward for ovn-kubernets
-  shell: |
-    oc patch network.operator cluster -p '{"spec":{"defaultNetwork": {"ovnKubernetesConfig":{"gatewayConfig":{"ipForwarding": "Global"}}}}}' --type=merge
+- name: Enable IP forward for OVN-Kubernetes
+  ansible.builtin.command:
+    cmd: |-
+      {%raw%}
+      oc patch network.operator cluster -p '{"spec":{"defaultNetwork": {"ovnKubernetesConfig":{"gatewayConfig":{"ipForwarding": "Global"}}}}}' --type=merge
+      {%endraw%}
 
 - name: Setup observability operator
   block:
     - name: Copy observability operator subscription template
-      template:
+      ansible.builtin.template:
         src: subscriptions.yaml
         dest: "{{ dt_path }}/subscriptions.yaml"
 
     - name: Apply observability operator subscription
-      shell: |
-        oc apply -f {{ dt_path }}/subscriptions.yaml
+      ansible.builtin.command:
+        cmd: oc apply -f {{ dt_path }}/subscriptions.yaml
 
     - name: Wait for observability operator to be available
-      shell: |
-        oc wait deployments/observability-operator --for condition=Available --timeout=300s -n openshift-operators
+      ansible.builtin.command:
+        cmd: oc wait deployments/observability-operator --for condition=Available --timeout=300s -n openshift-operators
+      register: observability_wait
+      retries: 5
+      delay: 5
+      until: observability_wait.rc == 0
   when: telemetry | default(true)
