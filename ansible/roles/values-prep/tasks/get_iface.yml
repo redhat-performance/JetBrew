@@ -1,15 +1,15 @@
 ---
-- name: Get interface for mac {{ item[0] }}
-  shell: >
-    ssh core@{{ node_0_ip }} "
-    ip -o link |
-    grep -i {{ item[0] }} |
-    awk -F': ' '{print \$2}' |
-    grep -v '[.@]'
-    "
+- name: "Get interface for mac {{ item[0] }}"
+  ansible.builtin.shell:
+    cmd: >-
+      ssh core@{{ node_0_ip }} "
+      ip -o link |
+      awk -F': ' 'BEGIN{IGNORECASE=1} /{{ item[0] }}/ && \$2 !~ /^br/ {print \$2}' |
+      grep -v '[.@]'
+      "
   register: iface
   failed_when: iface.rc != 0 and iface.stdout == ""
 
-- name: set iface to fact
-  set_fact:
+- name: Set iface to fact for the current item
+  ansible.builtin.set_fact:
     "{{ 'iface_' ~ item[1] }}": "{{ iface.stdout }}"
