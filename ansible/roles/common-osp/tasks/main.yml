@@ -2,14 +2,6 @@
   shell: |
     oc apply -k {{ dt_path }}/examples/common/olm/
 
-- name: Wait for openstack-controller pod to appear
-  ansible.builtin.shell: |
-    while ! (oc get pod --no-headers=true -l openstack.org/operator-name=openstack-controller -n openstack-operators | grep "controller-operator"); do sleep 10; done
-
-- name: Wait for openstack-controller pod to be Ready
-  ansible.builtin.shell: |
-    oc wait pod -n openstack-operators --for=condition=Ready -l openstack.org/operator-name=openstack-controller --timeout=300s
-
 - name: Wait for cert-manager-operator pod to appear
   ansible.builtin.shell: |
     while ! (oc get pod --no-headers=true -l name=cert-manager-operator -n cert-manager-operator | grep "cert-manager-operator"); do sleep 10; done

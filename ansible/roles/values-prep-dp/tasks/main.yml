@@ -2,7 +2,7 @@
 - name: Set final compute count
   set_fact:
     final_compute_count: >-
-      {% set nodes_length = ocp_inventry.json.nodes | length %}
+      {% set nodes_length = ocp_inventory.json.nodes | length %}
       {% if compute_count == -1 %}
         {{ nodes_length | int }}
       {% else %}
@@ -20,7 +20,7 @@
 
 - name: get the EDPM nodes
   set_fact:
-    edpm_nodes: "{{ ocp_inventry.json.nodes[4:final_compute_count|int] | map(attribute='name') | list }}"
+    edpm_nodes: "{{ ocp_inventory.json.nodes[4:final_compute_count|int] | map(attribute='name') | list }}"
 
 - name: check ssh key exists
   stat:

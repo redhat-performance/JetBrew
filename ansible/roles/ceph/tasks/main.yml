@@ -15,7 +15,7 @@
 
 - name: Get current node info from OCP inventory
   set_fact:
-    current_node_info: "{{ (hostvars['localhost']['ocp_inventry']['content'] | from_json).nodes | selectattr('name', 'equalto', inventory_hostname) | first }}"
+    current_node_info: "{{ (hostvars['localhost']['ocp_inventory']['content'] | from_json).nodes | selectattr('name', 'equalto', inventory_hostname) | first }}"
 
 - name: Get storage MAC address for interface detection
   set_fact:
