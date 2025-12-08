@@ -10,7 +10,7 @@
 
 - name: Read local OCP inventory file if present
   set_fact:
-    ocp_inventry:
+    ocp_inventory:
       content: "{{ lookup('file', ocp_inventory_local_path) }}"
   when:
     - ocp_inventory_local_path is defined
@@ -39,5 +39,5 @@
 
 - name: Set fact for OCP inventory (from download)
   set_fact:
-    ocp_inventry: "{{ ocpinventory_scale if lab == 'scalelab' else ocpinventory_alias }}"
+    ocp_inventory: "{{ ocpinventory_scale if lab == 'scalelab' else ocpinventory_alias }}"
   when: not (local_inventory_file.stat.exists | default(false))

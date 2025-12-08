@@ -9,8 +9,8 @@
 
     - name: Parse nodes from OCP inventory
       set_fact:
-        all_nodes: "{{ (ocp_inventry.content | from_json).nodes }}"
-        total_num_nodes: "{{ (ocp_inventry.content | from_json).nodes | length }}"
+        all_nodes: "{{ (ocp_inventory.content | from_json).nodes }}"
+        total_num_nodes: "{{ (ocp_inventory.content | from_json).nodes | length }}"
 
     - name: Validate sufficient nodes for Ceph deployment
       fail:
