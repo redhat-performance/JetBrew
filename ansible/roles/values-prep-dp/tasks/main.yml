@@ -40,6 +40,7 @@
     ansible_ssh_common_args: '-o StrictHostKeyChecking=no -o UserKnownHostsFile=/dev/null'
     ansible_ssh_pass: "{{ ssh_password }}"
   loop: "{{ edpm_nodes }}"
+  no_log: true
 
 - name: initialize the ctlplane ip vars
   set_fact:
@@ -85,6 +86,7 @@
     -o UserKnownHostsFile=/dev/null
     {{ ssh_username }}@{{ item }}
   loop: "{{ edpm_nodes }}"
+  no_log: true
 
 - name: read the private key
   slurp:

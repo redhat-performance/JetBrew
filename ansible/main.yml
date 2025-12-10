@@ -2,6 +2,7 @@
   gather_facts: false
   tasks:
     - name: Add Ceph admin node to dynamic inventory
+      no_log: true
       add_host:
         name: "{{ ceph_admin_node }}"
         groups: ceph_admin
