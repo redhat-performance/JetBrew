@@ -1,10 +1,11 @@
 ---
-- name: get woker node names
-  shell: oc get nodes -o jsonpath='{.items[*].metadata.name}'
+- name: Get worker node names
+  ansible.builtin.command:
+    cmd: oc get nodes -o jsonpath='{.items[*].metadata.name}'
   register: node_names
 
-- name: set node facts (node_*)
-  set_fact:
+- name: Set node facts (node_*)
+  ansible.builtin.set_fact:
     "{{ item_name }}": "{{ item }}"
   loop: "{{ node_names.stdout.split() }}"
   loop_control:
@@ -12,70 +13,73 @@
   vars:
     item_name: "node_{{ node_index }}"
 
-- name: get the second node macs (2,3 and 4th macs)
-  set_fact:
+- name: Get the second node MACs (2nd, 3rd and 4th MACs)
+  ansible.builtin.set_fact:
     macs: "{{ ocp_inventory.json.nodes[1].mac[1:4] }}"
 
-- name: get the ip of the first node
-  command: >
-    oc get nodes -o jsonpath="{range .items[*]}{.status.addresses[?(@.type=='InternalIP')].address}{'\n'}{end}"
-  register:
-    nodes_ip
+- name: Get the IP of the first node
+  ansible.builtin.command:
+    cmd: oc get nodes -o jsonpath="{range .items[*]}{.status.addresses[?(@.type=='InternalIP')].address}{'\n'}{end}"
+  register: nodes_ip
 
-- name: set node ip fact
-  set_fact:
+- name: Set node IP fact
+  ansible.builtin.set_fact:
     "{{ item_name }}": "{{ item }}"
   loop: "{{ nodes_ip.stdout.split() }}"
   loop_control:
     index_var: node_index
   vars:
-    item_name: "node_{{ node_index }}_ip" 
+    item_name: "node_{{ node_index }}_ip"
 
-- name: fix and setup ssh
-  include_tasks: setup-ssh.yml
+- name: Fix and setup SSH
+  ansible.builtin.include_tasks:
+    file: setup-ssh.yml
   loop: "{{ range(0, 3) | list }}"
 
-- name: get the interface names
-  include_tasks: get_iface.yml
+- name: Get the interface names
+  ansible.builtin.include_tasks:
+    file: get_iface.yml
   loop: "{{ macs | zip(range(macs | length)) | map('list') | list }}"
   loop_control:
     loop_var: item
 
-- name: set the ctlplane gateway ip
-  shell:
-    ip addr add 172.16.0.1/16 dev {{ iface_0 }}
-  become: yes
-  ignore_errors: yes
+- name: Set the ctlplane gateway IP
+  ansible.builtin.command:
+    cmd: ip addr add 172.16.0.1/16 dev {{ iface_0 }}
+  become: true
+  ignore_errors: true
 
-- name: set masquerade for the jump host
-  shell: |
-    iptables -t nat -A POSTROUTING -s 172.16.0.0/16 -o {{ iface_0 }} -j MASQUERADE
+- name: Set masquerade for the jump host
+  ansible.builtin.command:
+    cmd: iptables -t nat -A POSTROUTING -s 172.16.0.0/16 -o {{ iface_0 }} -j MASQUERADE
+  become: true
 
-- name: get the common disk accros nodes
-  include_tasks: find-node-disks.yml
+- name: Get the common disk across nodes
+  ansible.builtin.include_tasks:
+    file: find-node-disks.yml
 
 - name: Render nncp.yaml
-  template:
+  ansible.builtin.template:
     src: nncp_values.yaml.j2
     dest: "{{ dt_path }}/examples/dt/perfscale/scalelab/networking/nncp/values.yaml"
 
 - name: Render service_values.yaml
-  template:
+  ansible.builtin.template:
     src: service_values.yaml.j2
     dest: "{{ dt_path }}/examples/dt/perfscale/scalelab/service-values.yaml"
 
 - name: Render service_values_ceph.yaml
-  template:
+  ansible.builtin.template:
     src: service_values_ceph.yaml.j2
     dest: "{{ dt_path }}/examples/dt/perfscale/scalelab/service-values-ceph.yaml"
   when: ceph_backend | default(false) | bool
 
 - name: Render kustomization.yaml for controlplane
-  template:
+  ansible.builtin.template:
     src: kustomization.yaml.j2
     dest: "{{ dt_path }}/examples/dt/perfscale/scalelab/kustomization.yaml"
 
 - name: Render lvms value
-  template:
+  ansible.builtin.template:
     src: lvms-values.yaml.j2
     dest: "{{ dt_path }}/examples/dt/perfscale/scalelab/lvms/lvm-cluster/values.yaml"
