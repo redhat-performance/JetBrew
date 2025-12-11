@@ -16,6 +16,7 @@
     - ocp_inventory_local_path is defined
     - ocp_inventory_local_path | length > 0
     - local_inventory_file.stat.exists
+  no_log: true
 
 - name: Download OCP inventory file (scalelab)
   uri:
@@ -25,6 +26,7 @@
   when:
     - lab == 'scalelab'
     - not (local_inventory_file.stat.exists | default(false))
+  no_log: true
 
 - name: Download OCP inventory file (performancelab)
   uri:
@@ -34,8 +36,10 @@
   when:
     - lab == 'performancelab'
     - not (local_inventory_file.stat.exists | default(false))
+  no_log: true
 
 - name: Set fact for OCP inventory (from download)
   set_fact:
     ocp_inventory: "{{ ocpinventory_scale if lab == 'scalelab' else ocpinventory_alias }}"
   when: not (local_inventory_file.stat.exists | default(false))
+  no_log: true
