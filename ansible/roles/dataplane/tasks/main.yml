@@ -12,8 +12,10 @@
     kustomize build {{ dt_path }}/examples/dt/perfscale/scalelab/edpm/deployment/. | tee deployment.yml | oc apply -f -
 
 - name: Wait for dataplane deployment to finish
-  shell: |
-    oc wait osdpd edpm-deployment -n openstack --for condition=Ready --timeout=120m
+  ansible.builtin.shell: |
+    while [[ "$(oc get osdpd edpm-deployment -n openstack -o jsonpath={.status.conditions[?(@.type==\"Ready\")].status} 2>/dev/null)" != "True" ]]; do sleep 60; done
+  async: 7200
+  poll: 60
 
 - name: Run nova-manage cell_v2 discover_hosts
   shell: |
