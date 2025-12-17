@@ -46,3 +46,9 @@ ceph_admin_node: #hostname/ip
 ceph_admin_user: root
 ceph_admin_password: "{{ ansible_ssh_password }}"
 ceph_config_local_path: /root/ceph-config
+
+
+# Provision Variables
+foreman_os: RHEL 9.4
+foreman_url: https://foreman.example.com
+compute_start_node_index: 4
