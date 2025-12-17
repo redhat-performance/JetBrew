@@ -1,26 +1,31 @@
 ---
-- name: run lsblk on each nodes
-  vars: 
-    ip: "{{ lookup('vars', 'node_' ~ item ~ '_ip') }}"
-  shell: |
-    ssh core@{{ ip }} \
-        "lsblk -J -b -o NAME,TYPE,SIZE,MOUNTPOINT | jq -r '
-          .blockdevices[] 
-          | select(.type == \"disk\") 
-          | select(.size > 0)
-          | select((.children // []) | all(.mountpoint != \"/boot\")) 
-          | \"/dev/\" + .name'"
-  register: blk_outputs
-  loop: "{{ range(0,3) | list }}"
+- name: Run lsblk on first node
+  vars:
+    ip: "{{ lookup('vars', 'node_0_ip') }}"
+  ansible.builtin.shell:
+    cmd: >-
+      ssh core@{{ ip }} "lsblk -J -b -o NAME,TYPE,SIZE,MOUNTPOINT |
+      jq -r '.blockdevices[] | select(.size > 0 and .type == \"disk\") |
+      select((.children // []) | all(.mountpoint != \"/boot\")) | \"/dev/\" + .name'"
+  register: blk_output
+  changed_when: false
 
-- name: Extract device lists
-  set_fact:
-    node_disks_list: "{{ blk_outputs.results | map(attribute='stdout_lines') | list }}"
+- name: Get by-path device paths for each disk
+  vars:
+    ip: "{{ lookup('vars', 'node_0_ip') }}"
+  ansible.builtin.shell:
+    cmd: >-
+      ssh -o LogLevel=ERROR core@{{ ip }}
+      'udevadm info -q symlink -r --name="{{ item }}" |
+      awk '\''{ for (i = 1; i <= NF; i++) if ($i ~ /disk\/by-path\//) print $i }'\'''
+  register: by_path_outputs
+  loop: "{{ blk_output.stdout_lines }}"
+  changed_when: false
 
-- name: Find common devices accross nodes
-  set_fact:
-    common_disks: "{{ node_disks_list[0] | intersect(node_disks_list[1]) | intersect(node_disks_list[2]) }}"
+- name: Extract by-path device list
+  ansible.builtin.set_fact:
+    common_disks: "{{ by_path_outputs.results | selectattr('stdout', 'defined') | selectattr('stdout', 'ne', '') | map(attribute='stdout') | map('trim') | select('ne', '') | list }}"
 
-- name: common disks
-  debug:
+- name: Display common disks
+  ansible.builtin.debug:
     msg: "{{ common_disks }}"
