@@ -79,6 +79,7 @@ nova_migration_key: ~/.ssh/nova_migration  # Nova migration SSH key
 
 2. **Configure variables**:
    ```bash
+   cp ansible/group_vars/all.sample.yml ansible/group_vars/all.yml
    vim ansible/group_vars/all.yml
    ```
 
@@ -126,6 +127,54 @@ After successful deployment, the installer automatically:
 1. **Discovers Compute Hosts**: Runs `nova-manage cell_v2 discover_hosts` to register compute nodes
 2. **Validates Hypervisors**: Lists available hypervisors to confirm successful deployment
 3. **Provides Status**: Displays deployment status and service availability
+
+## Deploy Ceph
+
+JetBrew supports deploying an external Ceph cluster that can be integrated with RHOSO for block storage (Cinder), image storage (Glance), and VM disk storage (Nova). The Ceph deployment is performed separately from the main RHOSO deployment.
+
+### Prerequisites
+
+Before deploying Ceph, ensure:
+- **Sufficient Nodes**: You have enough nodes available.
+- **Registry Access**: Access to Red Hat registry (`registry.redhat.io`) with valid credentials.
+- **rhos release rpm**: Make sure You have Redhat openstack rpm. 
+
+### Configuration
+
+#### Required Variables
+
+Edit the `ansible/group_vars/all.yml` file and configure the following mandatory variables:
+
+```yaml
+# External ceph deploy vars
+cloud: cloud40
+ocp_inventory_local_path: /root/JetBrew/ceph_inventory.json
+ceph_node_count: 3 
+ansible_ssh_password: "{{ ssh_password }}"
+
+rhos_release_rpm: 
+ceph_version: "7.1"
+
+# Registry credentials used by external ceph
+registry_url: "registry.redhat.io"
+registry_username:
+registry_password:
+```
+
+- `cloud` Cloud identifier (e.g., cloud40)
+- `ocp_inventory_local_path` Path to the custom Ceph inventory file. If this path is not specified, the last three nodes will be used by default for the Ceph deployment.
+- `ceph_node_count` Number of nodes assigned for the Ceph cluster. 
+- `ansible_ssh_password` Defaults to `ssh_password` if already defined, or can be explicitly set here.
+- `rhos_release_rpm`  Path or URL to the RHOS release RPM.
+- `ceph_version`  Desired Ceph version to deploy.
+- `registry_url` Registry URL where Ceph images are hosted.
+- `registry_username` Username for registry authentication.
+- `registry_password` Password for registry authentication.
+
+#### Run Ceph ansible playbook
+ ```bash
+   ansible-playbook ansible/deploy_external_ceph.yaml
+   ```
 
 ## RHOSO Deletion
 
