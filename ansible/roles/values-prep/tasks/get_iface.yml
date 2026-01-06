@@ -5,7 +5,8 @@
     ip -o link |
     grep -i {{ item[0] }} |
     awk -F': ' '{print \$2}' |
-    grep -v '[.@]'
+    grep -v '[.@]' |
+    head -n1
     "
   register: iface
   failed_when: iface.rc != 0 and iface.stdout == ""
