@@ -108,11 +108,13 @@
   slurp:
     src: "{{ nova_migration_key }}"
   register: ssh_nova_priv_key_data
+  no_log: true
 
 - name: load and setfact of nova migration key
   set_fact:
     nova_migration_private_key: "{{ ssh_nova_priv_key_data.content }}"
     nova_migration_public_key: "{{ lookup('file', nova_migration_key + '.pub') | b64encode }}"
+  no_log: true
 
 - name: generate nodeset values
   template:
