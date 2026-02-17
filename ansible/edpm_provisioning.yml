@@ -12,20 +12,29 @@
         all_nodes: "{{ (ocp_inventory.content | from_json).nodes }}"
         total_num_nodes: "{{ (ocp_inventory.content | from_json).nodes | length }}"
 
-    - name: Set default compute start node index
+    - name: Set effective start index (from start or fallback variable)
       set_fact:
-        compute_start_node_index: "{{ compute_start_node_index | default(4) }}"
+        effective_start: "{{ provision_start_node_index | default(provision_start_node_index) | int }}"
+
+    - name: Set compute start node index (support negative indexing)
+      set_fact:
+        prov_start_node_index: >-
+          {{
+            effective_start
+            if effective_start >= 0
+            else (total_num_nodes | int) + effective_start
+          }}
 
     - name: Calculate last compute node index
       set_fact:
-        last_compute_node_index: "{{ compute_start_node_index + compute_count }}"
-      when: compute_count | int >= 0
+        prov_last_node_index: >-
+          {{
+            prov_start_node_index + (num_prov_nodes | int) - 1
+          }}
 
     - name: Select EDPM nodes from start_node
       set_fact:
-        edpm_nodes: "{{ ocp_inventory.json.nodes[compute_start_node_index|int:last_compute_node_index|int] | map(attribute='name') | list }}"
-      when: compute_count | int > 0
+        edpm_nodes: "{{ ocp_inventory.json.nodes[prov_start_node_index|int:prov_last_node_index|int] | map(attribute='name') | list }}"
 
   roles:
     - role: foreman
-      when: compute_count | int > 0

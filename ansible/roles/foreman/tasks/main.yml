@@ -7,12 +7,10 @@
     foreman_user: "{{ all_nodes[0].pm_user }}"
     foreman_password: "{{ all_nodes[0].pm_password }}"
 
-
 - name: Generate Foreman configuration file
   template:
     src: "foreman_config.j2"
     dest: "/tmp/foreman_config_updated_{{ cloud }}.yml"
-
 
 - name: Determine boot mode for each node
   set_fact:
@@ -33,7 +31,6 @@
       {%- endif -%}
   loop: "{{ edpm_nodes }}"
 
-
 - name: Update Foreman host configuration for each node
   shell: |
     podman run \
@@ -52,27 +49,34 @@
   loop: "{{ node_boot_modes }}"
   register: foreman_update_results
 
-
 - name: Set boot device for SuperMicro servers
   shell: |
     podman run quay.io/ocp-edge-qe/ipmitool ipmitool -I lanplus -H mgmt-{{ item.node }} -U {{ foreman_user }} -P {{ foreman_password }} chassis bootdev pxe
   loop: "{{ node_boot_modes | selectattr('boot_mode', 'equalto', 'Bios') | list }}"
   register: supermicro_bootdev_results
 
-
 - name: Set boot device for non-SuperMicro servers
   shell: |
     podman run quay.io/quads/badfish:latest -H mgmt-{{ item.node }} -u {{ foreman_user }} -p {{ foreman_password }} -i config/idrac_interfaces.yml -t foreman
   loop: "{{ node_boot_modes | rejectattr('boot_mode', 'equalto', 'Bios') | list }}"
-  register: badfish_bootdev_results
+  register: non_supermicro_bootdev_results
 
+- name: Fail if any boot device configuration had failures
+  ansible.builtin.fail:
+    msg: >-
+      Boot device configuration failed.
+      SuperMicro (ipmitool) failures: {{ supermicro_failures | map(attribute='node') | list | join(', ') or 'none' }}
+      Non-SuperMicro (badfish) failures: {{ non_supermicro_failures | map(attribute='node') | list | join(', ') or 'none' }}
+  when: (supermicro_failures | length + non_supermicro_failures | length) > 0
+  vars:
+    supermicro_failures: "{{ (supermicro_bootdev_results | default({'results': []})).results | selectattr('failed') | map(attribute='item') | list }}"
+    non_supermicro_failures: "{{ (non_supermicro_bootdev_results | default({'results': []})).results | selectattr('failed') | map(attribute='item') | list }}"
 
 - name: Reboot all nodes
   shell: |
     podman run quay.io/quads/badfish:latest --reboot-only -H mgmt-{{ item.node }} -u {{ foreman_user }} -p {{ foreman_password }}
   loop: "{{ node_boot_modes }}"
   register: reboot_results
-
 
 - name: Wait for nodes to be SSH accessible after reboot
   shell: |
@@ -83,12 +87,10 @@
   delay: 30
   until: ssh_check_results is succeeded
 
-
 - name: Remove existing SSH keys for all nodes
   shell: |
     ssh-keygen -R {{ item.node }} 2>/dev/null || true
   loop: "{{ node_boot_modes }}"
-
 
 - name: Get SSH host keys for all nodes
   shell: |
@@ -96,7 +98,6 @@
   loop: "{{ node_boot_modes }}"
   register: ssh_keys_result
   changed_when: false
-
 
 - name: Add SSH keys to known_hosts for all nodes
   ansible.builtin.known_hosts:

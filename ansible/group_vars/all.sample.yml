@@ -52,4 +52,5 @@ amphora_image_container_image: registry.redhat.io/rhoso/octavia-amphora-image-rh
 # Provision Variables
 foreman_os: RHEL 9.4
 foreman_url: https://foreman.example.com
-compute_start_node_index: 4
+provision_start_node_index: 4 # index starts from 0
+num_prov_nodes: "{{ compute_count }}" # override with required count  
