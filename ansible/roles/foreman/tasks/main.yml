@@ -12,9 +12,10 @@
     src: "foreman_config.j2"
     dest: "/tmp/foreman_config_updated_{{ cloud }}.yml"
 
-- name: Determine boot mode for each node
+# Boot mode (Bios/UEFI) per node for Foreman PXE loader; separate from which tool we use to set boot device (regex below).
+- name: Determine actual boot mode and PXE loader for each node
   set_fact:
-    node_boot_modes: "{{ node_boot_modes | default([]) + [{'node': item, 'boot_mode': boot_mode_result}] }}"
+    node_boot_modes: "{{ node_boot_modes | default([]) + [{'node': item, 'boot_mode': boot_mode_result, 'pxe_loader': pxe_loader_result, 'use_ipmitool_bootdev': use_ipmitool_bootdev}] }}"
   vars:
     boot_mode_result: >-
       {%- if item is match('.*(1029u|1029p|5039ms|6018r|6029p|6029r|6048p|6048r|6049p).*') -%}
@@ -29,6 +30,9 @@
           UEFI
         {%- endif -%}
       {%- endif -%}
+    pxe_loader_result: "{{ 'PXELinux BIOS' if boot_mode_result == 'Bios' else 'Grub2 UEFI' }}"
+    # For set boot device only: if hostname matches SuperMicro regex use ipmitool, else badfish foreman
+    use_ipmitool_bootdev: "{{ item is match('.*(1029u|1029p|5039ms|6018r|6029p|6029r|6048p|6048r|6049p).*') }}"
   loop: "{{ edpm_nodes }}"
 
 - name: Update Foreman host configuration for each node
@@ -44,35 +48,37 @@
       host update \
       --name {{ item.node }} \
       --operatingsystem "{{ foreman_os }}" \
-      --pxe-loader "{{ 'PXELinux BIOS' if item.boot_mode == 'Bios' else 'PXELinux UEFI' }}" \
+      --pxe-loader "{{ item.pxe_loader }}" \
       --build 1
   loop: "{{ node_boot_modes }}"
   register: foreman_update_results
 
-- name: Set boot device for SuperMicro servers
+# Set boot device: SuperMicro regex (1029u|1029p|...) -> ipmitool; else -> badfish foreman (skip boot device change for non-SuperMicro = use badfish)
+- name: Set boot device via ipmitool (SuperMicro nodes matching 1029u|1029p|5039ms|6018r|6029p|6029r|6048p|6048r|6049p)
   shell: |
     podman run quay.io/ocp-edge-qe/ipmitool ipmitool -I lanplus -H mgmt-{{ item.node }} -U {{ foreman_user }} -P {{ foreman_password }} chassis bootdev pxe
-  loop: "{{ node_boot_modes | selectattr('boot_mode', 'equalto', 'Bios') | list }}"
-  register: supermicro_bootdev_results
+  loop: "{{ node_boot_modes | selectattr('use_ipmitool_bootdev') | list }}"
+  register: pxe_bootdev_results
 
-- name: Set boot device for non-SuperMicro servers
+- name: Set boot device via badfish foreman (all other nodes)
   shell: |
     podman run quay.io/quads/badfish:latest -H mgmt-{{ item.node }} -u {{ foreman_user }} -p {{ foreman_password }} -i config/idrac_interfaces.yml -t foreman
-  loop: "{{ node_boot_modes | rejectattr('boot_mode', 'equalto', 'Bios') | list }}"
-  register: non_supermicro_bootdev_results
+  loop: "{{ node_boot_modes | rejectattr('use_ipmitool_bootdev') | list }}"
+  register: foreman_bootdev_results
+  ignore_errors: true
 
-- name: Fail if any boot device configuration had failures
+- name: Fail if any set boot device (PXE or Foreman) had failures
   ansible.builtin.fail:
     msg: >-
-      Boot device configuration failed.
-      SuperMicro (ipmitool) failures: {{ supermicro_failures | map(attribute='node') | list | join(', ') or 'none' }}
-      Non-SuperMicro (badfish) failures: {{ non_supermicro_failures | map(attribute='node') | list | join(', ') or 'none' }}
-  when: (supermicro_failures | length + non_supermicro_failures | length) > 0
+      Set boot device failed.
+      PXE (ipmitool) failures: {{ pxe_failures | map(attribute='node') | list | join(', ') or 'none' }}
+      Foreman (badfish) failures: {{ foreman_failures | map(attribute='node') | list | join(', ') or 'none' }}
+  when: (pxe_failures | length + foreman_failures | length) > 0
   vars:
-    supermicro_failures: "{{ (supermicro_bootdev_results | default({'results': []})).results | selectattr('failed') | map(attribute='item') | list }}"
-    non_supermicro_failures: "{{ (non_supermicro_bootdev_results | default({'results': []})).results | selectattr('failed') | map(attribute='item') | list }}"
+    pxe_failures: "{{ (pxe_bootdev_results | default({'results': []})).results | selectattr('failed') | map(attribute='item') | list }}"
+    foreman_failures: "{{ (foreman_bootdev_results | default({'results': []})).results | selectattr('failed') | map(attribute='item') | list }}"
 
-- name: Reboot all nodes
+- name: Reboot all nodes via badfish
   shell: |
     podman run quay.io/quads/badfish:latest --reboot-only -H mgmt-{{ item.node }} -u {{ foreman_user }} -p {{ foreman_password }}
   loop: "{{ node_boot_modes }}"

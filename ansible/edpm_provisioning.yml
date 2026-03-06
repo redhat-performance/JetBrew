@@ -20,16 +20,16 @@
       set_fact:
         prov_start_node_index: >-
           {{
-            effective_start
-            if effective_start >= 0
-            else (total_num_nodes | int) + effective_start
+            (effective_start | int)
+            if (effective_start | int) >= 0
+            else (total_num_nodes | int) + (effective_start | int)
           }}
 
     - name: Calculate last compute node index
       set_fact:
         prov_last_node_index: >-
           {{
-            prov_start_node_index + (num_prov_nodes | int) - 1
+            (prov_start_node_index | int) + (num_prov_nodes | int)
           }}
 
     - name: Select EDPM nodes from start_node
