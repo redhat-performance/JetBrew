@@ -140,6 +140,19 @@ data:
           ansibleUser: {{ ssh_username }}
           ansibleVars:
             fqdn_internal_api: {{ node.hostname }}.example.com
+        networks:
+          - defaultRoute: true
+            fixedIp: {{ node.ip_address }}
+            name: ctlplane
+            subnetName: subnet1
+          - name: internalapi
+            subnetName: subnet1
+          - name: storage
+            subnetName: subnet1
+          - name: tenant
+            subnetName: subnet1
+          - name: external
+            subnetName: subnet1
 {% endfor %}
     services:
       - bootstrap
