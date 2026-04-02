@@ -1,42 +1,46 @@
 ---
-# Foreman Role - Main Tasks
-# This role handles Foreman-related operations including EDPM node provisioning
+# Foreman role - shell-equivalent boot behavior
 
-- name: Set fact for foreman_user and foreman_password
+- name: Set shared Foreman facts
   ansible.builtin.set_fact:
     foreman_user: "{{ all_nodes[0].pm_user }}"
     foreman_password: "{{ all_nodes[0].pm_password }}"
+    supermicro_regex: '.*(1029u|1029p|5039ms|6018r|6029p|6029r|6048p|6048r|6049p).*'
 
 - name: Generate Foreman configuration file
-  template:
+  ansible.builtin.template:
     src: "foreman_config.j2"
     dest: "/tmp/foreman_config_updated_{{ cloud }}.yml"
+    mode: "0600"
 
-# Boot mode (Bios/UEFI) per node for Foreman PXE loader; separate from which tool we use to set boot device (regex below).
-- name: Determine actual boot mode and PXE loader for each node
-  set_fact:
-    node_boot_modes: "{{ node_boot_modes | default([]) + [{'node': item, 'boot_mode': boot_mode_result, 'pxe_loader': pxe_loader_result, 'use_ipmitool_bootdev': use_ipmitool_bootdev}] }}"
+- name: Determine boot mode and PXE loader for each node
+  ansible.builtin.set_fact:
+    node_boot_modes: "{{ node_boot_modes | default([]) + [node_boot_entry] }}"
   vars:
-    boot_mode_result: >-
-      {%- if item is match('.*(1029u|1029p|5039ms|6018r|6029p|6029r|6048p|6048r|6049p).*') -%}
-        Bios
-      {%- elif item is match('.*r660.*') -%}
-        UEFI
-      {%- else -%}
-        {%- set badfish_result = lookup('pipe', 'podman run quay.io/quads/badfish:latest --get-bios-attribute --attribute BootMode -H mgmt-' + item + ' -u ' + foreman_user + ' -p ' + foreman_password + ' -o json 2>&1 | jq -r .CurrentValue') -%}
-        {%- if badfish_result and badfish_result != 'null' and badfish_result != '' -%}
-          {{ badfish_result }}
-        {%- else -%}
-          UEFI
-        {%- endif -%}
-      {%- endif -%}
-    pxe_loader_result: "{{ 'PXELinux BIOS' if boot_mode_result == 'Bios' else 'Grub2 UEFI' }}"
-    # For set boot device only: if hostname matches SuperMicro regex use ipmitool, else badfish foreman
-    use_ipmitool_bootdev: "{{ item is match('.*(1029u|1029p|5039ms|6018r|6029p|6029r|6048p|6048r|6049p).*') }}"
+    badfish_boot_mode: >-
+      {{
+        lookup(
+          'ansible.builtin.pipe',
+          'podman run quay.io/quads/badfish:latest --get-bios-attribute --attribute BootMode '
+          ~ '-H mgmt-' ~ item ~ ' -u ' ~ foreman_user ~ ' -p ' ~ foreman_password ~ ' -o json 2>&1 '
+          ~ '| jq -r .CurrentValue'
+        ) | trim
+      }}
+    detected_boot_mode: >-
+      {{
+        'Bios'
+        if item is match(supermicro_regex)
+        else (badfish_boot_mode if badfish_boot_mode not in ['', 'null'] else 'UEFI')
+      }}
+    node_boot_entry:
+      node: "{{ item }}"
+      boot_mode: "{{ detected_boot_mode }}"
+      pxe_loader: "{{ 'PXELinux BIOS' if detected_boot_mode == 'Bios' else 'Grub2 UEFI' }}"
+      use_ipmitool_bootdev: "{{ item is match(supermicro_regex) }}"
   loop: "{{ edpm_nodes }}"
 
 - name: Update Foreman host configuration for each node
-  shell: |
+  ansible.builtin.shell: |
     podman run \
       -v /tmp/foreman_config_updated_{{ cloud }}.yml:/opt/hammer/foreman_config.yml \
       quay.io/cloud-bulldozer/foreman-cli:latest \
@@ -50,65 +54,162 @@
       --operatingsystem "{{ foreman_os }}" \
       --pxe-loader "{{ item.pxe_loader }}" \
       --build 1
+    sleep 10
+  args:
+    executable: /bin/bash
   loop: "{{ node_boot_modes }}"
   register: foreman_update_results
 
-# Set boot device: SuperMicro regex (1029u|1029p|...) -> ipmitool; else -> badfish foreman (skip boot device change for non-SuperMicro = use badfish)
-- name: Set boot device via ipmitool (SuperMicro nodes matching 1029u|1029p|5039ms|6018r|6029p|6029r|6048p|6048r|6049p)
-  shell: |
-    podman run quay.io/ocp-edge-qe/ipmitool ipmitool -I lanplus -H mgmt-{{ item.node }} -U {{ foreman_user }} -P {{ foreman_password }} chassis bootdev pxe
+- name: Set boot device via ipmitool for SuperMicro nodes
+  ansible.builtin.shell: |
+    podman run quay.io/ocp-edge-qe/ipmitool \
+      ipmitool -I lanplus -H mgmt-{{ item.node }} \
+      -U {{ foreman_user }} -P {{ foreman_password }} \
+      chassis bootdev pxe
+  args:
+    executable: /bin/bash
   loop: "{{ node_boot_modes | selectattr('use_ipmitool_bootdev') | list }}"
   register: pxe_bootdev_results
+  when: (node_boot_modes | selectattr('use_ipmitool_bootdev') | list | length) > 0
 
-- name: Set boot device via badfish foreman (all other nodes)
-  shell: |
-    podman run quay.io/quads/badfish:latest -H mgmt-{{ item.node }} -u {{ foreman_user }} -p {{ foreman_password }} -i config/idrac_interfaces.yml -t foreman
+- name: Set boot device via badfish for non-SuperMicro nodes
+  ansible.builtin.shell: |
+    podman run quay.io/quads/badfish:latest \
+      -H mgmt-{{ item.node }} \
+      -u {{ foreman_user }} \
+      -p {{ foreman_password }} \
+      -i config/idrac_interfaces.yml \
+      -t foreman
+  args:
+    executable: /bin/bash
   loop: "{{ node_boot_modes | rejectattr('use_ipmitool_bootdev') | list }}"
   register: foreman_bootdev_results
-  ignore_errors: true
+  when: (node_boot_modes | rejectattr('use_ipmitool_bootdev') | list | length) > 0
 
-- name: Fail if any set boot device (PXE or Foreman) had failures
+- name: Fail if initial boot device setup failed
   ansible.builtin.fail:
     msg: >-
-      Set boot device failed.
-      PXE (ipmitool) failures: {{ pxe_failures | map(attribute='node') | list | join(', ') or 'none' }}
-      Foreman (badfish) failures: {{ foreman_failures | map(attribute='node') | list | join(', ') or 'none' }}
-  when: (pxe_failures | length + foreman_failures | length) > 0
+      Initial boot device setup failed.
+      PXE (ipmitool) failures: {{ pxe_failures | join(', ') if pxe_failures else 'none' }}
+      Foreman (badfish) failures: {{ foreman_failures | join(', ') if foreman_failures else 'none' }}
   vars:
-    pxe_failures: "{{ (pxe_bootdev_results | default({'results': []})).results | selectattr('failed') | map(attribute='item') | list }}"
-    foreman_failures: "{{ (foreman_bootdev_results | default({'results': []})).results | selectattr('failed') | map(attribute='item') | list }}"
+    pxe_failures: >-
+      {{
+        ((pxe_bootdev_results | default({'results': []})).results)
+        | selectattr('rc', 'ne', 0)
+        | map(attribute='item.node')
+        | list
+      }}
+    foreman_failures: >-
+      {{
+        ((foreman_bootdev_results | default({'results': []})).results)
+        | selectattr('rc', 'ne', 0)
+        | map(attribute='item.node')
+        | list
+      }}
+  when: (pxe_failures | length + foreman_failures | length) > 0
 
 - name: Reboot all nodes via badfish
-  shell: |
-    podman run quay.io/quads/badfish:latest --reboot-only -H mgmt-{{ item.node }} -u {{ foreman_user }} -p {{ foreman_password }}
+  ansible.builtin.shell: |
+    podman run quay.io/quads/badfish:latest \
+      --reboot-only \
+      -H mgmt-{{ item.node }} \
+      -u {{ foreman_user }} \
+      -p {{ foreman_password }}
+  args:
+    executable: /bin/bash
   loop: "{{ node_boot_modes }}"
   register: reboot_results
 
-- name: Wait for nodes to be SSH accessible after reboot
-  shell: |
-    sshpass -p {{ ssh_password }} ssh -o ConnectTimeout=10 -o StrictHostKeyChecking=no -o UserKnownHostsFile=/dev/null root@{{ item.node }} 'hostname'
+- name: Pause before ping checks
+  ansible.builtin.pause:
+    seconds: 60
+
+- name: Wait for nodes to become unreachable via ping
+  ansible.builtin.shell: |
+    ping -c 1 -W 2 {{ item.node }}
+  args:
+    executable: /bin/bash
+  register: ping_down_results
+  retries: 12
+  delay: 15
+  until: ping_down_results.rc != 0
+  changed_when: false
+  failed_when: false
   loop: "{{ node_boot_modes }}"
+
+- name: Wait for nodes to become reachable via ping
+  ansible.builtin.shell: |
+    ping -c 1 -W 2 {{ item.node }}
+  args:
+    executable: /bin/bash
+  register: ping_up_results
+  retries: 20
+  delay: 30
+  until: ping_up_results.rc == 0
+  changed_when: false
+  failed_when: false
+  loop: "{{ node_boot_modes }}"
+
+- name: Build recovery list for non-SuperMicro nodes
+  ansible.builtin.set_fact:
+    stuck_dell_nodes: >-
+      {{
+        ping_up_results.results
+        | selectattr('rc', 'ne', 0)
+        | selectattr('item.use_ipmitool_bootdev', 'equalto', false)
+        | map(attribute='item.node')
+        | list
+      }}
+
+- name: Show recovery candidates
+  ansible.builtin.debug:
+    msg: "Dell/non-SuperMicro nodes eligible for recovery: {{ stuck_dell_nodes | default([]) | join(', ') if (stuck_dell_nodes | default([]) | length > 0) else 'none' }}"
+
+- name: Recover stuck Dell/non-SuperMicro nodes
+  ansible.builtin.include_tasks: recover_dell_boot.yml
+  loop: "{{ stuck_dell_nodes }}"
+  loop_control:
+    loop_var: recover_node
+  when: stuck_dell_nodes | length > 0
+
+- name: Wait for nodes to be SSH accessible after reboot/recovery
+  ansible.builtin.shell: |
+    sshpass -p {{ ssh_password }} \
+      ssh -o ConnectTimeout=10 \
+          -o StrictHostKeyChecking=no \
+          -o UserKnownHostsFile=/dev/null \
+          root@{{ item.node }} 'hostname'
+  args:
+    executable: /bin/bash
   register: ssh_check_results
   retries: 30
   delay: 30
-  until: ssh_check_results is succeeded
-
-- name: Remove existing SSH keys for all nodes
-  shell: |
-    ssh-keygen -R {{ item.node }} 2>/dev/null || true
+  until: ssh_check_results.rc == 0
+  changed_when: false
   loop: "{{ node_boot_modes }}"
 
+- name: Remove existing SSH keys for all nodes
+  ansible.builtin.shell: |
+    ssh-keygen -R {{ item.node }} 2>/dev/null || true
+  args:
+    executable: /bin/bash
+  loop: "{{ node_boot_modes }}"
+  changed_when: false
+
 - name: Get SSH host keys for all nodes
-  shell: |
+  ansible.builtin.shell: |
     ssh-keyscan -t ecdsa,ed25519,rsa {{ item.node }} 2>/dev/null
+  args:
+    executable: /bin/bash
   loop: "{{ node_boot_modes }}"
   register: ssh_keys_result
   changed_when: false
 
-- name: Add SSH keys to known_hosts for all nodes
+- name: Add SSH keys to known_hosts
   ansible.builtin.known_hosts:
-    name: "{{ item.item.node }}"
-    key: "{{ item.stdout }}"
+    name: "{{ item.split(' ')[0] }}"
+    key: "{{ item }}"
     state: present
-  loop: "{{ ssh_keys_result.results }}"
-  when: item.stdout is defined and item.stdout != ""
+  loop: "{{ ssh_keys_result.results | map(attribute='stdout_lines') | flatten }}"
+  when: item | trim != ""
