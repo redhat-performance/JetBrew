@@ -22,7 +22,6 @@
   uri:
     url: "https://wiki.scalelab.redhat.com/instack/{{ cloud }}_ocpinventory.json"
     return_content: true
-    validate_certs: false
   register: ocpinventory_scale
   when:
     - lab == 'scalelab'
@@ -33,7 +32,6 @@
   uri:
     url: "https://wiki.rdu3.labs.perfscale.redhat.com/instack/{{ cloud }}_ocpinventory.json"
     return_content: true
-    validate_certs: false
   register: ocpinventory_alias
   when:
     - lab == 'performancelab'
