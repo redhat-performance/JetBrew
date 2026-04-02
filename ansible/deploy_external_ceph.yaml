@@ -12,11 +12,6 @@
         all_nodes: "{{ (ocp_inventory.content | from_json).nodes }}"
         total_num_nodes: "{{ (ocp_inventory.content | from_json).nodes | length }}"
 
-    - name: Validate sufficient nodes for Ceph deployment
-      fail:
-        msg: "Insufficient number of nodes available for ceph cluster"
-      when: (total_num_nodes | int) - 4 - (ceph_node_count | int) < (compute_count | int)
-
     - name: Select nodes for Ceph from bottom of list
       set_fact:
         storage_nodes: "{{ all_nodes[-ceph_node_count:] }}"
