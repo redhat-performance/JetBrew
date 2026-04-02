@@ -17,20 +17,25 @@
   ansible.builtin.set_fact:
     node_boot_modes: "{{ node_boot_modes | default([]) + [node_boot_entry] }}"
   vars:
-    badfish_boot_mode: >-
+    queried_boot_mode: >-
       {{
-        lookup(
-          'ansible.builtin.pipe',
-          'podman run quay.io/quads/badfish:latest --get-bios-attribute --attribute BootMode '
-          ~ '-H mgmt-' ~ item ~ ' -u ' ~ foreman_user ~ ' -p ' ~ foreman_password ~ ' -o json 2>&1 '
-          ~ '| jq -r .CurrentValue'
+        (
+          'Bios'
+          if item is match(supermicro_regex)
+          else lookup(
+            'pipe',
+            'podman run quay.io/quads/badfish:latest '
+            ~ '--get-bios-attribute --attribute BootMode '
+            ~ '-H ' ~ (('mgmt-' ~ item) | quote) ~ ' '
+            ~ '-u ' ~ (foreman_user | quote) ~ ' '
+            ~ '-p ' ~ (foreman_password | quote) ~ ' '
+            ~ "-o json 2>/dev/null | jq -r '.CurrentValue // empty' 2>/dev/null || true"
+          )
         ) | trim
       }}
     detected_boot_mode: >-
       {{
-        'Bios'
-        if item is match(supermicro_regex)
-        else (badfish_boot_mode if badfish_boot_mode not in ['', 'null'] else 'UEFI')
+        queried_boot_mode if queried_boot_mode not in ['', 'null'] else 'UEFI'
       }}
     node_boot_entry:
       node: "{{ item }}"
@@ -121,32 +126,40 @@
   loop: "{{ node_boot_modes }}"
   register: reboot_results
 
-- name: Pause before ping checks
+- name: Pause before SSH checks
   ansible.builtin.pause:
-    seconds: 60
+    seconds: 30
 
-- name: Wait for nodes to become unreachable via ping
+- name: Wait for nodes to become unreachable via SSH
   ansible.builtin.shell: |
-    ping -c 1 -W 2 {{ item.node }}
+    sshpass -p {{ ssh_password | quote }} \
+      ssh -o ConnectTimeout=10 \
+          -o StrictHostKeyChecking=no \
+          -o UserKnownHostsFile=/dev/null \
+          root@{{ item.node }} 'hostname'
   args:
     executable: /bin/bash
-  register: ping_down_results
+  register: ssh_down_results
   retries: 12
   delay: 15
-  until: ping_down_results.rc != 0
+  until: ssh_down_results.rc != 0
   changed_when: false
   failed_when: false
   loop: "{{ node_boot_modes }}"
 
-- name: Wait for nodes to become reachable via ping
+- name: Wait for nodes to become reachable via SSH
   ansible.builtin.shell: |
-    ping -c 1 -W 2 {{ item.node }}
+    sshpass -p {{ ssh_password | quote }} \
+      ssh -o ConnectTimeout=10 \
+          -o StrictHostKeyChecking=no \
+          -o UserKnownHostsFile=/dev/null \
+          root@{{ item.node }} 'hostname'
   args:
     executable: /bin/bash
-  register: ping_up_results
+  register: ssh_up_results
   retries: 20
   delay: 30
-  until: ping_up_results.rc == 0
+  until: ssh_up_results.rc == 0
   changed_when: false
   failed_when: false
   loop: "{{ node_boot_modes }}"
@@ -155,7 +168,7 @@
   ansible.builtin.set_fact:
     stuck_dell_nodes: >-
       {{
-        ping_up_results.results
+        ssh_up_results.results
         | selectattr('rc', 'ne', 0)
         | selectattr('item.use_ipmitool_bootdev', 'equalto', false)
         | map(attribute='item.node')
@@ -173,18 +186,32 @@
     loop_var: recover_node
   when: stuck_dell_nodes | length > 0
 
-- name: Wait for nodes to be SSH accessible after reboot/recovery
+- name: Wait for nodes to be provisioned with the expected OS
   ansible.builtin.shell: |
-    sshpass -p {{ ssh_password }} \
+    sshpass -p {{ ssh_password | quote }} \
       ssh -o ConnectTimeout=10 \
           -o StrictHostKeyChecking=no \
           -o UserKnownHostsFile=/dev/null \
-          root@{{ item.node }} 'hostname'
+          root@{{ item.node }} 'cat /etc/redhat-release'
   args:
     executable: /bin/bash
-  register: ssh_check_results
+  register: os_check_results
   retries: 30
   delay: 30
-  until: ssh_check_results.rc == 0
+  until: os_check_results.rc == 0
   changed_when: false
   loop: "{{ node_boot_modes }}"
+
+- name: Build successfully provisioned node list
+  ansible.builtin.set_fact:
+    provisioned_nodes: >-
+      {{
+        os_check_results.results
+        | selectattr('rc', 'eq', 0)
+        | map(attribute='item.node')
+        | list
+      }}
+
+- name: Show successfully provisioned nodes
+  ansible.builtin.debug:
+    msg: "Successfully provisioned nodes with RHEL {{ foreman_os }}: {{ provisioned_nodes | join(', ') if (provisioned_nodes | length > 0) else 'none' }}"
