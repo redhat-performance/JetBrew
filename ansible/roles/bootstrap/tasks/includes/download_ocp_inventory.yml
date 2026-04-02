@@ -11,7 +11,7 @@
 - name: Read local OCP inventory file if present
   set_fact:
     ocp_inventory:
-      content: "{{ lookup('file', ocp_inventory_local_path) }}"
+      content: "{{ lookup('file', ocp_inventory_local_path) | string }}"
   when:
     - ocp_inventory_local_path is defined
     - ocp_inventory_local_path | length > 0
