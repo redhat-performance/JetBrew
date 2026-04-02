@@ -1,5 +1,6 @@
 ---
-# Foreman role - shell-equivalent boot behavior
+# Foreman Role - Main Tasks
+# This role handles Foreman-related operations including EDPM node provisioning.
 
 - name: Set shared Foreman facts
   ansible.builtin.set_fact:
