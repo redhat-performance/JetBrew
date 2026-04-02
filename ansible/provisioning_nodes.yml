@@ -12,17 +12,13 @@
         all_nodes: "{{ (ocp_inventory.content | from_json).nodes }}"
         total_num_nodes: "{{ (ocp_inventory.content | from_json).nodes | length }}"
 
-    - name: Set effective start index (from start or fallback variable)
-      set_fact:
-        effective_start: "{{ provision_start_node_index | default(provision_start_node_index) | int }}"
-
-    - name: Set compute start node index (support negative indexing)
+    - name: Set start node index (support negative indexing)
       set_fact:
         prov_start_node_index: >-
           {{
-            (effective_start | int)
-            if (effective_start | int) >= 0
-            else (total_num_nodes | int) + (effective_start | int)
+            (provision_start_node_index | int)
+            if (provision_start_node_index | int) >= 0
+            else (total_num_nodes | int) + (provision_start_node_index | int)
           }}
 
     - name: Calculate last compute node index

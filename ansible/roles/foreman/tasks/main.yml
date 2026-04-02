@@ -6,7 +6,6 @@
   ansible.builtin.set_fact:
     foreman_user: "{{ all_nodes[0].pm_user }}"
     foreman_password: "{{ all_nodes[0].pm_password }}"
-    supermicro_regex: '.*(1029u|1029p|5039ms|6018r|6029p|6029r|6048p|6048r|6049p).*'
 
 - name: Generate Foreman configuration file
   ansible.builtin.template:
@@ -189,28 +188,3 @@
   until: ssh_check_results.rc == 0
   changed_when: false
   loop: "{{ node_boot_modes }}"
-
-- name: Remove existing SSH keys for all nodes
-  ansible.builtin.shell: |
-    ssh-keygen -R {{ item.node }} 2>/dev/null || true
-  args:
-    executable: /bin/bash
-  loop: "{{ node_boot_modes }}"
-  changed_when: false
-
-- name: Get SSH host keys for all nodes
-  ansible.builtin.shell: |
-    ssh-keyscan -t ecdsa,ed25519,rsa {{ item.node }} 2>/dev/null
-  args:
-    executable: /bin/bash
-  loop: "{{ node_boot_modes }}"
-  register: ssh_keys_result
-  changed_when: false
-
-- name: Add SSH keys to known_hosts
-  ansible.builtin.known_hosts:
-    name: "{{ item.split(' ')[0] }}"
-    key: "{{ item }}"
-    state: present
-  loop: "{{ ssh_keys_result.results | map(attribute='stdout_lines') | flatten }}"
-  when: item | trim != ""
