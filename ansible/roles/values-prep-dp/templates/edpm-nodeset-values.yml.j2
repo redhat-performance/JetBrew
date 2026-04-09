@@ -36,13 +36,16 @@ data:
 
           # install rhos-release repos
           dnf --nogpgcheck --repofrompath=rhos-release,http://download.devel.redhat.com/rcm-guest/puddles/OpenStack/rhos-release/ --repo=rhos-release install -y rhos-release
+          {%- if puddle != '' %}
+          rhos-release {{ rhos_release }} -p {{ puddle }} -r {{ rhel_release }}
+          {%- else %}
           rhos-release ceph-7.1-rhel-9 -r 9.4
+          {%- endif %}
 
           # Issue #2 - edpm_bootstrap fails if we don't update 'container-selinux'
           dnf update -y
 
           rpm -ivh --nosignature http://download.devel.redhat.com/rcm-guest/puddles/OpenStack/rhos-release/rhos-release-latest.noarch.rpm
-          rhos-release ceph-7.1-rhel-9 -r 9.4
           curl -o /etc/yum.repos.d/delorean.repo https://osp-trunk.hosted.upshift.rdu2.redhat.com/rhel9-osp18/current-podified/delorean.repo
           echo "[osptrunk-candidate-deps]" >> "/etc/yum.repos.d/osptrunk-candidate-deps.repo"
           echo "name=osptrunk-candidate-deps" >> "/etc/yum.repos.d/osptrunk-candidate-deps.repo"
