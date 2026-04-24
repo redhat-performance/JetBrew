@@ -48,3 +48,12 @@ ceph_admin_password: "{{ ansible_ssh_password }}"
 ceph_config_local_path: /root/ceph-config
 
 amphora_image_container_image: registry.redhat.io/rhoso/octavia-amphora-image-rhel9:18.0.4-2
+
+# External network configuration (post-deployment)
+external_net_name: public
+external_net_cidr: 172.19.0.0/16
+external_net_gateway: 172.19.0.1
+external_net_alloc_start: 172.19.100.1
+external_net_alloc_end: 172.19.254.254
+external_net_physical_network: datacentre
+external_network_vlan_id: 19

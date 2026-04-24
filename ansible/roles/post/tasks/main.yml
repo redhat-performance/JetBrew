@@ -1,0 +1,31 @@
+---
+- name: Create vlan interface on external interface
+  vars:
+    vlan_interface: "{{ iface_2 }}.{{ external_network_vlan_id }}"
+  shell: |
+    ip link add link {{ iface_2 }} name {{ vlan_interface }} type vlan id {{ external_network_vlan_id }}
+    ip link set dev {{ iface_2 }} up
+    ip link set dev {{ vlan_interface }} up
+    ip a a {{ external_net_gateway }}/{{ external_net_cidr.split('/')[1] }} dev {{ vlan_interface }}
+  become: true
+
+- name: Create external network
+  shell: |
+    oc rsh -n openstack openstackclient openstack network create \
+      --external \
+      --provider-network-type vlan \
+      --provider-physical-network {{ external_net_physical_network }} \
+      --provider-segment {{ external_network_vlan_id }} \
+      {{ external_net_name }}
+
+- name: Create external subnet
+  shell: |
+    oc rsh -n openstack openstackclient openstack subnet create \
+      --network {{ external_net_name }} \
+      --subnet-range {{ external_net_cidr }} \
+      --gateway {{ external_net_gateway }} \
+      --allocation-pool start={{ external_net_alloc_start }},end={{ external_net_alloc_end }} \
+      --no-dhcp \
+      {{ external_net_name }}-subnet
+
+
