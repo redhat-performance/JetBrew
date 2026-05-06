@@ -1,0 +1,8 @@
+---
+external_net_name: public
+external_net_cidr: 172.19.0.0/16
+external_net_gateway: 172.19.0.1
+external_net_alloc_start: 172.19.100.1
+external_net_alloc_end: 172.19.254.254
+external_net_physical_network: datacentre
+external_network_vlan_id: 19
