@@ -165,6 +165,35 @@ The deletion process uses a **comprehensive approach** to safely remove all RHOS
 
 This approach is **100% accurate** and provides **complete RHOSO removal**!
 
+## Rhoso nodes Provisioning
+
+This guide explains how to provision nodes using the provided Ansible playbook. Run to provision the nodes:
+
+```bash
+ansible-playbook ansible/provision_nodes.yml
+```
+
+### Required variables 
+
+Configure the required variables in: `ansible/group_vars/all.yml`
+
+```yaml
+
+compute_count: 1                  # Number of compute nodes to provision
+
+# Provision variables
+foreman_os: "RHEL 9.4"
+foreman_url: "https://foreman.example.com/"
+provision_start_node_index: 4     # Index starts from 0
+num_prov_nodes: "{{ compute_count }}"   # Override if a different count is required
+```
+
+### Notes
+
+- A default variable `supermicro_regex` exists in the role.
+- This variable helps automatically detect and include **SuperMicro machines** during provisioning.
+- If new machines are added to the lab, ensure they match the `supermicro_regex` pattern, or update the regex accordingly.
+
 ## Troubleshooting
 
 ### Common Issues

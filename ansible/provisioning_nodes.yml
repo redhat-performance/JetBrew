@@ -1,0 +1,36 @@
+---
+- name: Provisioning EDPM nodes
+  hosts: localhost
+  gather_facts: false
+
+  pre_tasks:
+    - name: Download or load OCP inventory
+      include_tasks: roles/bootstrap/tasks/includes/download_ocp_inventory.yml
+
+    - name: Parse nodes from OCP inventory
+      set_fact:
+        all_nodes: "{{ (ocp_inventory.content | from_json).nodes }}"
+        total_num_nodes: "{{ (ocp_inventory.content | from_json).nodes | length }}"
+
+    - name: Set start node index (support negative indexing)
+      set_fact:
+        prov_start_node_index: >-
+          {{
+            (provision_start_node_index | int)
+            if (provision_start_node_index | int) >= 0
+            else (total_num_nodes | int) + (provision_start_node_index | int)
+          }}
+
+    - name: Calculate last compute node index
+      set_fact:
+        prov_last_node_index: >-
+          {{
+            (prov_start_node_index | int) + (num_prov_nodes | int)
+          }}
+
+    - name: Select EDPM nodes from start_node
+      set_fact:
+        edpm_nodes: "{{ ocp_inventory.json.nodes[prov_start_node_index|int:prov_last_node_index|int] | map(attribute='name') | list }}"
+
+  roles:
+    - role: foreman
