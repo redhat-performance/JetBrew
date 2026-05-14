@@ -22,8 +22,8 @@
   uri:
     url: "https://wiki.scalelab.redhat.com/instack/{{ cloud }}_ocpinventory.json"
     return_content: true
+    validate_certs: false
   register: ocpinventory_scale
-  validate_certs: false
   when:
     - lab == 'scalelab'
     - not (local_inventory_file.stat.exists | default(false))
