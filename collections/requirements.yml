@@ -1,0 +1,7 @@
+---
+# Collections not bundled with ansible-core (install: ansible-galaxy collection install -r collections/requirements.yml)
+collections:
+  - name: community.crypto
+    version: ">=2.0.0"
+  - name: ansible.posix
+    version: ">=1.5.0"

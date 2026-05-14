@@ -1,0 +1,56 @@
+# Static checks for JetBrew (Ansible). Catches YAML/Ansible parse issues before merge.
+name: Ansible CI
+
+on:
+  pull_request:
+  push:
+    branches:
+      - main
+      - master
+
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
+permissions:
+  contents: read
+
+jobs:
+  lint-and-syntax:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+
+      - name: Install tools
+        run: |
+          python -m pip install --upgrade pip
+          pip install "ansible-core>=2.15,<2.19" yamllint
+
+      # ansible-core does not ship community modules (e.g. openssh_keypair in ceph role).
+      - name: Install Ansible collections
+        run: ansible-galaxy collection install -r collections/requirements.yml
+
+      - name: Yamllint (ansible + utils)
+        run: yamllint ansible utils
+
+      - name: Ansible playbook syntax check
+        run: |
+          set -euo pipefail
+          INV=( -i "localhost," -c local )
+          VARFILE=( -e "@ansible/group_vars/all.sample.yml" )
+          check() {
+            local playbook="$1"
+            echo "==> ${playbook}"
+            ansible-playbook "${INV[@]}" --syntax-check "${VARFILE[@]}" "${playbook}"
+          }
+          check ansible/main.yml
+          check ansible/delete-rhoso.yml
+          check ansible/deploy_external_ceph.yaml
+          check ansible/provisioning_nodes.yml
+          check utils/reprovision.yml
