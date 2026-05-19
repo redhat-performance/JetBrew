@@ -1,0 +1,20 @@
+# JetBrew: pragmatic defaults so CI catches YAML syntax errors without
+# failing on Ansible/Jinja style that is common in operator repos.
+extends: default
+
+ignore: |
+  **/*.j2
+
+rules:
+  line-length: disable
+  document-start: disable
+  comments: disable
+  truthy: disable
+  braces: disable
+  brackets: disable
+  empty-lines:
+    max: 3
+    max-start: 0
+    max-end: 2
+  trailing-spaces: disable
+  new-line-at-end-of-file: disable
