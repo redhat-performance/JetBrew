@@ -17,9 +17,14 @@
   set_fact:
     node_disks_list: "{{ blk_outputs.results | map(attribute='stdout_lines') | list }}"
 
-- name: Find common devices accross nodes
+- name: Find common devices across nodes
   set_fact:
     common_disks: "{{ node_disks_list[0] | intersect(node_disks_list[1]) | intersect(node_disks_list[2]) }}"
+
+- name: Fail if no common disks found
+  fail:
+    msg: "No common disks found"
+  when: common_disks | length == 0
 
 - name: common disks
   debug:
