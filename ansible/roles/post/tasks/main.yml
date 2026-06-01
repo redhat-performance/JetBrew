@@ -3,10 +3,10 @@
   vars:
     vlan_interface: "{{ iface_2 }}.{{ external_network_vlan_id }}"
   shell: |
-    ip link add link {{ iface_2 }} name {{ vlan_interface }} type vlan id {{ external_network_vlan_id }}
+    ip link show {{ vlan_interface }} > /dev/null 2>&1 || ip link add link {{ iface_2 }} name {{ vlan_interface }} type vlan id {{ external_network_vlan_id }}
     ip link set dev {{ iface_2 }} up
     ip link set dev {{ vlan_interface }} up
-    ip a a {{ external_net_gateway }}/{{ external_net_cidr.split('/')[1] }} dev {{ vlan_interface }}
+    ip addr show dev {{ vlan_interface }} | grep -q "{{ external_net_gateway }}/{{ external_net_cidr.split('/')[1] }}" || ip a a {{ external_net_gateway }}/{{ external_net_cidr.split('/')[1] }} dev {{ vlan_interface }}
   become: true
 
 - name: Create external network
