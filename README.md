@@ -73,12 +73,13 @@ nova_migration_key: ~/.ssh/nova_migration  # Nova migration SSH key
 
 1. **Clone the repository**:
    ```bash
-   git clone <repository-url>
-   cd RHOSO
+   git clone https://github.com/redhat-performance/JetBrew.git
+   cd JetBrew
    ```
 
 2. **Configure variables**:
    ```bash
+   cp ansible/group_vars/all.sample.yml ansible/group_vars/all.yml
    vim ansible/group_vars/all.yml
    ```
 
