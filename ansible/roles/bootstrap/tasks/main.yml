@@ -42,6 +42,14 @@
       shell: |
         oc apply -f {{ dt_path }}/subscriptions.yaml
 
+    - name: Wait for observability operator deployment to be created
+      shell: |
+        oc get deployments/observability-operator -n openshift-operators
+      register: obs_deploy
+      until: obs_deploy.rc == 0
+      retries: 30
+      delay: 10
+
     - name: Wait for observability operator to be available
       shell: |
         oc wait deployments/observability-operator --for condition=Available --timeout=300s -n openshift-operators
