@@ -32,10 +32,12 @@ data:
     ovnController:
       external-ids:
         enable-chassis-as-gateway: true
-        ovn-bridge: octbr
+        ovn-bridge: br-int
         ovn-encap-type: geneve
         system-id: random
       networkAttachment: tenant
+      nicMappings:
+        octavia: octbr
       resources: {}
       tls: {}
 
