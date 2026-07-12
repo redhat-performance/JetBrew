@@ -1,14 +1,14 @@
 ---
 - name: run lsblk on each nodes
-  vars: 
+  vars:
     ip: "{{ lookup('vars', 'node_' ~ item ~ '_ip') }}"
   shell: |
     ssh core@{{ ip }} \
         "lsblk -J -b -o NAME,TYPE,SIZE,MOUNTPOINT | jq -r '
-          .blockdevices[] 
-          | select(.type == \"disk\") 
+          .blockdevices[]
+          | select(.type == \"disk\")
           | select(.size > 0)
-          | select((.children // []) | all(.mountpoint != \"/boot\")) 
+          | select((.children // []) | all(.mountpoint != \"/boot\"))
           | \"/dev/\" + .name'"
   register: blk_outputs
   loop: "{{ range(0,3) | list }}"
@@ -20,6 +20,49 @@
 - name: Find common devices accross nodes
   set_fact:
     common_disks: "{{ node_disks_list[0] | intersect(node_disks_list[1]) | intersect(node_disks_list[2]) }}"
+
+- name: Create virtual loopback disks when no common disks found
+  when: common_disks | length == 0
+  block:
+    - name: Create and attach virtual disk on each node
+      vars:
+        ip: "{{ lookup('vars', 'node_' ~ item ~ '_ip') }}"
+        disk_image: "{{ lvms_virtual_disk_image | default('/var/lib/topolvm/disk1.img') }}"
+        loop_device: "{{ lvms_virtual_disk_device | default('/dev/loop99') }}"
+        disk_size_gb: "{{ lvms_virtual_disk_size_gb | default(20) }}"
+      shell: |
+        ssh core@{{ ip }} bash -s <<'EOF'
+        set -euo pipefail
+        DISK_IMG="{{ disk_image }}"
+        LOOP_DEV="{{ loop_device }}"
+        DISK_SIZE_GB={{ disk_size_gb }}
+
+        sudo mkdir -p "$(dirname "$DISK_IMG")"
+
+        if [ ! -f "$DISK_IMG" ]; then
+          sudo dd if=/dev/zero of="$DISK_IMG" bs=1G count="$DISK_SIZE_GB" status=none
+        fi
+
+        if ! sudo losetup -j "$DISK_IMG" 2>/dev/null | grep -q .; then
+          sudo losetup -d "$LOOP_DEV" 2>/dev/null || true
+          sudo losetup -P "$LOOP_DEV" "$DISK_IMG"
+        fi
+
+        sudo losetup -j "$DISK_IMG" | awk -F: '{print $1}'
+        EOF
+      register: virtual_disk_outputs
+      loop: "{{ range(0,3) | list }}"
+
+    - name: Set common_disks from virtual loop devices
+      set_fact:
+        common_disks: "{{ [lvms_virtual_disk_device | default('/dev/loop99')] }}"
+
+    - name: Verify virtual loop device on each node
+      assert:
+        that:
+          - item.stdout | trim == (lvms_virtual_disk_device | default('/dev/loop99'))
+        fail_msg: "Node {{ item.item }} has unexpected loop device: {{ item.stdout | trim }}"
+      loop: "{{ virtual_disk_outputs.results }}"
 
 - name: common disks
   debug:
