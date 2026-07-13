@@ -35,6 +35,17 @@
   delay: 5
   until: sub_check.rc == 0
 
+- name: Wait for LVMS operator webhook service to have endpoints
+  ansible.builtin.shell: |
+    until oc get endpoints lvms-operator-service -n openshift-storage -o jsonpath='{.subsets[*].addresses[*].ip}' 2>/dev/null | grep -q .; do
+      sleep 5
+    done
+  register: lvms_webhook_result
+  retries: 60
+  delay: 5
+  until: lvms_webhook_result.rc == 0
+  changed_when: false
+
 - name: generate lvms cluster yamls
   shell:
     kustomize build {{ dt_path }}/examples/dt/perfscale/scalelab/lvms/lvm-cluster/. | tee lvm-cluster.yml | oc apply -f -
@@ -50,11 +61,5 @@
 - name: Wait for LVMCluster 'lvmcluster' to be Ready
   ansible.builtin.shell: |
     while [[ "$(oc get lvmcluster lvmcluster -n openshift-storage -o jsonpath={.status.ready} 2>/dev/null)" != "true" ]]; do sleep 5; done
-  async: 300
-  poll: 5
-
-- name: Wait for LVMS operator pods to be Ready
-  ansible.builtin.shell: |
-    while [[ -z "$(oc get pods -n openshift-storage -l app.kubernetes.io/name=lvms-operator -o jsonpath={.items[*].status.containerStatuses[0].ready} 2>/dev/null)" ]]; do sleep 5; done
   async: 300
   poll: 5
