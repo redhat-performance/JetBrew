@@ -16,13 +16,21 @@
     version: bm-ocp
     force: yes
 
-- name: download kustomize lib
-  shell:
-    curl -s "https://raw.githubusercontent.com/kubernetes-sigs/kustomize/master/hack/install_kustomize.sh"  | bash
+- name: Check if kustomize is installed
+  stat:
+    path: /usr/bin/kustomize
+  register: kustomize_bin
 
-- name: move the kustomize to usr-bin
-  shell:
-    mv kustomize /usr/bin/.
+- name: Install kustomize
+  block:
+    - name: download kustomize lib
+      shell:
+        curl -s "https://raw.githubusercontent.com/kubernetes-sigs/kustomize/master/hack/install_kustomize.sh"  | bash
+
+    - name: move the kustomize to usr-bin
+      shell:
+        mv kustomize /usr/bin/.
+  when: not kustomize_bin.stat.exists
 
 - name: Download or load OCP inventory
   include_tasks: includes/download_ocp_inventory.yml
