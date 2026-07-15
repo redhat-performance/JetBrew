@@ -18,11 +18,11 @@
 
 - name: download kustomize lib
   shell:
-    curl -s "https://raw.githubusercontent.com/kubernetes-sigs/kustomize/master/hack/install_kustomize.sh"  | bash
+    curl -s "https://raw.githubusercontent.com/kubernetes-sigs/kustomize/master/hack/install_kustomize.sh"  | bash 2> /dev/null  || if [ ! -x /usr/bin/kustomize ] ; then exit "install_kustomize.sh download failed" ; fi
 
 - name: move the kustomize to usr-bin
   shell:
-    mv kustomize /usr/bin/.
+    if [ -x kustomize ] ; then mv kustomize /usr/bin/. ; fi
 
 - name: Download or load OCP inventory
   include_tasks: includes/download_ocp_inventory.yml
