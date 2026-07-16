@@ -60,6 +60,28 @@
 
 - name: Wait for LVMCluster 'lvmcluster' to be Ready
   ansible.builtin.shell: |
-    while [[ "$(oc get lvmcluster lvmcluster -n openshift-storage -o jsonpath={.status.ready} 2>/dev/null)" != "true" ]]; do sleep 5; done
-  async: 300
-  poll: 5
+    set -euo pipefail
+    for i in $(seq 1 360); do
+      state="$(oc get lvmcluster lvmcluster -n openshift-storage -o jsonpath='{.status.state}' 2>/dev/null || true)"
+      echo "LVMCluster state: ${state:-unknown} (attempt ${i}/360)"
+      case "${state}" in
+        Ready)
+          exit 0
+          ;;
+        Failed|Degraded)
+          echo "LVMCluster entered error state: ${state}"
+          oc get lvmcluster lvmcluster -n openshift-storage -o yaml || true
+          exit 1
+          ;;
+        Progressing|"")
+          sleep 10
+          ;;
+        *)
+          echo "Unexpected LVMCluster state: ${state}"
+          exit 1
+          ;;
+      esac
+    done
+    echo "Timed out waiting for LVMCluster to become Ready"
+    exit 1
+  changed_when: false
