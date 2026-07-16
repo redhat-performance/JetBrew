@@ -4,6 +4,18 @@
   become: yes
   ignore_errors: yes
 
+- name: Remove default REJECT rules from iptables
+  block:
+    - name: Remove INPUT REJECT rule
+      command: iptables -D INPUT -j REJECT --reject-with icmp-host-prohibited
+      become: yes
+      ignore_errors: yes
+
+    - name: Remove FORWARD REJECT rule
+      command: iptables -D FORWARD -j REJECT --reject-with icmp-host-prohibited
+      become: yes
+      ignore_errors: yes
+
 - name: clean up the dt_path
   file:
     path: "{{ dt_path }}"
@@ -30,6 +42,19 @@
 - name: enable ip forward for ovn-kubernets
   shell: |
     oc patch network.operator cluster -p '{"spec":{"defaultNetwork": {"ovnKubernetesConfig":{"gatewayConfig":{"ipForwarding": "Global"}}}}}' --type=merge
+
+- name: Configure NAT masquerade on public interface
+  block:
+    - name: get default route
+      shell: |
+        ip r | grep default | cut -d ' ' -f5
+      register: default_route
+      become: yes
+
+    - name: masquerade on public interface
+      shell: |
+        iptables -t nat -A POSTROUTING -o {{ default_route.stdout }} -j MASQUERADE
+      become: yes
 
 - name: Setup observability operator
   block:
