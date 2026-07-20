@@ -16,6 +16,17 @@
       become: yes
       ignore_errors: yes
 
+    - name: Remove REJECT rules from /etc/sysconfig/iptables
+      ansible.builtin.lineinfile:
+        path: /etc/sysconfig/iptables
+        regexp: '{{ item }}'
+        state: absent
+      become: yes
+      ignore_errors: yes
+      loop:
+        - '^-A INPUT -j REJECT --reject-with icmp-host-prohibited'
+        - '^-A FORWARD -j REJECT --reject-with icmp-host-prohibited'
+
 - name: clean up the dt_path
   file:
     path: "{{ dt_path }}"
