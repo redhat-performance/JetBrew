@@ -3,6 +3,13 @@ lab: scalelab #scalelab/performancelab
 dt_path: /root/test/architecture
 compute_count: 1
 
+#rhos-release
+rhos_release: 18.0
+
+#update the required puddle
+puddle: ''
+rhel_release: 9.4
+
 # Baremetal node login and key details
 ssh_password: your-password
 ssh_username: cloud-admin
