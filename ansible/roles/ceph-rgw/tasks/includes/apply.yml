@@ -1,0 +1,103 @@
+---
+# Keystone config + orch apply RGW/ingress + wait healthy.
+
+- name: Render RGW + ingress orch spec
+  no_log: true
+  template:
+    src: rgw_spec.yaml.j2
+    dest: "{{ rgw_spec_file }}"
+    mode: "0600"
+
+- name: Configure RGW Keystone settings
+  no_log: true
+  shell: |
+    set -euo pipefail
+    c() { cephadm shell -- ceph config set global "$@"; }
+    c rgw_keystone_url "{{ rgw_keystone_url }}"
+    c rgw_keystone_verify_ssl {{ rgw_keystone_verify_ssl | lower }}
+    c rgw_keystone_api_version {{ rgw_keystone_api_version }}
+    c rgw_keystone_accepted_roles "{{ rgw_keystone_accepted_roles }}"
+    c rgw_keystone_accepted_admin_roles "{{ rgw_keystone_accepted_admin_roles }}"
+    c rgw_keystone_admin_domain {{ rgw_keystone_admin_domain }}
+    c rgw_keystone_admin_project {{ rgw_keystone_admin_project }}
+    c rgw_keystone_admin_user {{ rgw_keystone_admin_user }}
+    c rgw_keystone_admin_password "{{ rgw_swift_password }}"
+    c rgw_keystone_implicit_tenants true
+    c rgw_s3_auth_use_keystone true
+    c rgw_swift_versioning_enabled true
+    c rgw_swift_enforce_content_length true
+    c rgw_swift_account_in_url true
+    c rgw_trust_forwarded_https true
+    c rgw_max_attr_name_len 128
+    c rgw_max_attrs_num_in_req 90
+    c rgw_max_attr_size 1024
+  changed_when: true
+
+- name: Apply RGW + ingress orch spec
+  shell: |
+    cephadm shell -m {{ rgw_spec_file }} -- \
+      ceph orch apply -i /mnt/{{ rgw_spec_file | basename }}
+  register: rgw_orch_apply
+  changed_when: true
+
+- name: Wait for RGW running
+  shell: |
+    set -euo pipefail
+    status=$(cephadm shell -- ceph orch ls --service_name rgw.{{ rgw_service_id }} 2>/dev/null | awk '/^rgw\./ {print $3; exit}')
+    echo "$status"
+    running=${status%%/*}
+    size=${status##*/}
+    test -n "$running" && test "$running" = "$size" && test "$size" -gt 0
+  register: rgw_ls
+  retries: 30
+  delay: 10
+  until: rgw_ls.rc == 0
+  changed_when: false
+
+- name: Wait for ingress running
+  shell: |
+    set -euo pipefail
+    status=$(cephadm shell -- ceph orch ls --service_name ingress.{{ rgw_ingress_service_id }} 2>/dev/null | awk '/^ingress\./ {print $3; exit}')
+    echo "$status"
+    running=${status%%/*}
+    size=${status##*/}
+    test -n "$running" && test "$running" = "$size" && test "$size" -gt 0
+  register: rgw_ingress_ls
+  retries: 30
+  delay: 10
+  until: rgw_ingress_ls.rc == 0
+  changed_when: false
+
+# Fresh apply can leave beast SSL unbound while orch still reports N/N (VIP 503).
+# Redeploy once now so SSL loads, then confirm with a VIP probe.
+- name: Redeploy RGW after orch counts are healthy
+  shell: |
+    cephadm shell -- ceph orch redeploy rgw.{{ rgw_service_id }}
+  changed_when: true
+
+- name: Wait for RGW running after redeploy
+  shell: |
+    set -euo pipefail
+    status=$(cephadm shell -- ceph orch ls --service_name rgw.{{ rgw_service_id }} 2>/dev/null | awk '/^rgw\./ {print $3; exit}')
+    echo "$status"
+    running=${status%%/*}
+    size=${status##*/}
+    test -n "$running" && test "$running" = "$size" && test "$size" -gt 0
+  register: rgw_ls_after_redeploy
+  retries: 30
+  delay: 10
+  until: rgw_ls_after_redeploy.rc == 0
+  changed_when: false
+
+- name: Wait for storage VIP HTTPS
+  shell: |
+    set -euo pipefail
+    code=$(curl -sk -o /dev/null -w "%{http_code}" --connect-timeout 5 \
+      https://{{ rgw_storage_vip }}:{{ rgw_frontend_port }}/ || true)
+    echo "$code"
+    test "$code" = "200"
+  register: rgw_vip_ready
+  retries: 30
+  delay: 10
+  until: rgw_vip_ready.rc == 0
+  changed_when: false

@@ -1,0 +1,30 @@
+---
+- name: "Get object-store {{ rgw_endpoint_interface }} endpoint"
+  shell: |
+    oc rsh -n {{ openstack_namespace }} {{ openstackclient_pod }} \
+      openstack endpoint list \
+        --service object-store \
+        --interface {{ rgw_endpoint_interface }} \
+        -f value -c ID -c URL
+  register: rgw_endpoint_list
+  changed_when: false
+  failed_when: false
+
+- name: "Create object-store {{ rgw_endpoint_interface }} endpoint"
+  shell: |
+    oc rsh -n {{ openstack_namespace }} {{ openstackclient_pod }} \
+      openstack endpoint create \
+        --region {{ keystone_region }} \
+        object-store {{ rgw_endpoint_interface }} \
+        '{{ rgw_endpoint_url }}'
+  when: rgw_endpoint_list.stdout_lines | length == 0
+
+- name: "Update object-store {{ rgw_endpoint_interface }} endpoint URL"
+  shell: |
+    oc rsh -n {{ openstack_namespace }} {{ openstackclient_pod }} \
+      openstack endpoint set \
+        --url '{{ rgw_endpoint_url }}' \
+        {{ rgw_endpoint_list.stdout_lines[0].split()[0] }}
+  when:
+    - rgw_endpoint_list.stdout_lines | length > 0
+    - (rgw_endpoint_list.stdout_lines[0].split(None, 1)[1] | default('')) != rgw_endpoint_url
