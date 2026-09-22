@@ -1,0 +1,32 @@
+---
+rgw_storage_vip: 172.20.0.24
+rgw_external_vip: 172.19.0.24
+rgw_frontend_port: 8080
+rgw_backend_port: 8082
+rgw_realm: default
+rgw_zone: default
+rgw_service_id: rgw
+rgw_ingress_service_id: rgw.default
+
+# Align with mon/mgr
+rgw_placement_count: 3
+
+storage_network: 172.20.0.0/16
+external_network: 172.19.0.0/16
+storage_network_prefix: "{{ storage_network.split('/')[1] }}"
+external_network_prefix: "{{ external_network.split('/')[1] }}"
+
+rgw_remote_workdir: /tmp/jetbrew-rgw
+rgw_spec_file: "{{ rgw_remote_workdir }}/rgw_spec.yaml"
+
+# Ingress needs one host slot per VIP
+rgw_ingress_monitor_port: 8999
+rgw_ingress_count: 2
+
+rgw_keystone_verify_ssl: false
+rgw_keystone_api_version: 3
+rgw_keystone_accepted_roles: "member, Member, admin"
+rgw_keystone_accepted_admin_roles: "ResellerAdmin, swiftoperator"
+rgw_keystone_admin_domain: default
+rgw_keystone_admin_project: service
+rgw_keystone_admin_user: swift

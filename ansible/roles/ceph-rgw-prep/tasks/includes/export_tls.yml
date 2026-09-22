@@ -1,0 +1,17 @@
+---
+- name: Read RGW TLS cert and key from Certificate secret
+  no_log: true
+  shell: |
+    set -euo pipefail
+    crt=$(oc -n {{ openstack_namespace }} get secret {{ rgw_certificate_secret }} \
+      -o jsonpath='{.data.tls\.crt}' | base64 -d)
+    key=$(oc -n {{ openstack_namespace }} get secret {{ rgw_certificate_secret }} \
+      -o jsonpath='{.data.tls\.key}' | base64 -d)
+    printf '%s\n%s\n' "$crt" "$key"
+  register: rgw_tls_pem_raw
+  changed_when: false
+
+- name: Store concatenated TLS PEM on localhost for Stage 6
+  no_log: true
+  set_fact:
+    rgw_ssl_pem: "{{ rgw_tls_pem_raw.stdout }}"
