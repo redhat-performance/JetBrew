@@ -9,25 +9,30 @@
     number_of_nodes: 1 # -1 for till last node
     cloud: 40
     password: rdu2@xxxx
+    quads_api_token: ""
+    quads_hosts:
+      scale: quads2.rdu2.scalelab.redhat.com
+      alias: quads2.rdu3.labs.perfscale.redhat.com
 
   tasks:
-    - name: get the instackenv for scalelab
-      uri:
-        url: "https://wiki.scalelab.redhat.com/instack/cloud{{ cloud }}_ocpinventory.json"
-        return_content: true
-      register: inventory_scale
-      when: lab == 'scale'
+    - name: Set QUADS host for lab
+      set_fact:
+        quads_host: "{{ quads_hosts[lab] }}"
+      when: lab in quads_hosts
 
-    - name: get the instackenv for alias
+    - name: get the instackenv
       uri:
-        url: "https://wiki.rdu3.labs.perfscale.redhat.com/instack/cloud{{ cloud }}_ocpinventory.json"
+        url: "https://{{ quads_host }}/instack/cloud{{ cloud }}_ocpinventory.json"
         return_content: true
-      register: inventory_alias
-      when: lab == 'alias'
+        validate_certs: false
+        headers:
+          Authorization: "Bearer {{ quads_api_token }}"
+      register: inventory_download
+      when: quads_host is defined
 
     - name: set fact inventory
       set_fact:
-        inventory: "{{ inventory_scale if lab == 'scale' else inventory_alias }}"
+        inventory: "{{ inventory_download }}"
 
     - name: last index
       set_fact:
@@ -56,4 +61,3 @@
       #shell: |
       #  podman run --rm --dns 10.1.32.3 -it quads/badfish -H {{ item }} -u quads -p {{ password }} -i config/idrac_interfaces.yml --power-cycle
       #loop: "{{ final_nodes }}"
-    

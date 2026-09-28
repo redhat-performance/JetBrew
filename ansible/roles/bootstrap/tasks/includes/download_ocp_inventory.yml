@@ -1,6 +1,8 @@
 ---
 # This task file downloads OCP inventory from scalelab or performancelab
 # It only downloads if the file is not present locally
+#
+# A Bearer token (quads_api_token) is required for authenticated downloads.
 
 - name: Check if local OCP inventory file exists
   stat:
@@ -18,30 +20,38 @@
     - local_inventory_file.stat.exists
   no_log: true
 
-- name: Download OCP inventory file (scalelab)
-  uri:
-    url: "https://wiki.scalelab.redhat.com/instack/{{ cloud }}_ocpinventory.json"
-    return_content: true
-    validate_certs: false
-  register: ocpinventory_scale
+- name: Set QUADS host for lab
+  set_fact:
+    quads_host: "{{ quads_hosts[lab] }}"
   when:
-    - lab == 'scalelab'
     - not (local_inventory_file.stat.exists | default(false))
-  no_log: true
+    - lab in quads_hosts | default({})
 
-- name: Download OCP inventory file (performancelab)
+- name: Validate quads_api_token is set
+  fail:
+    msg: >-
+      quads_api_token must be set in ansible/group_vars/all.yml.
+      Generate a qat_ token from your QUADS profile page or via
+      POST /api/v3/tokens/<email>/. Token user must be cloud owner, cc-user, or admin.
+  when:
+    - not (local_inventory_file.stat.exists | default(false))
+    - quads_api_token is not defined or quads_api_token == None or quads_api_token | string | length == 0
+
+- name: Download OCP inventory file
   uri:
-    url: "https://wiki.rdu3.labs.perfscale.redhat.com/instack/{{ cloud }}_ocpinventory.json"
+    url: "https://{{ quads_host }}/instack/{{ cloud }}_ocpinventory.json"
     return_content: true
     validate_certs: false
-  register: ocpinventory_alias
+    headers:
+      Authorization: "Bearer {{ quads_api_token }}"
+  register: ocpinventory_download
   when:
-    - lab == 'performancelab'
     - not (local_inventory_file.stat.exists | default(false))
+    - quads_host is defined
   no_log: true
 
 - name: Set fact for OCP inventory (from download)
   set_fact:
-    ocp_inventory: "{{ ocpinventory_scale if lab == 'scalelab' else ocpinventory_alias }}"
+    ocp_inventory: "{{ ocpinventory_download }}"
   when: not (local_inventory_file.stat.exists | default(false))
   no_log: true
