@@ -1,0 +1,23 @@
+---
+# Load Keystone, Swift password, and TLS PEM from localhost (ceph-rgw-prep).
+
+- name: Fail when ceph-rgw-prep outputs are missing on localhost
+  fail:
+    msg: "ceph-rgw-prep must run on localhost first (need Keystone URL, Swift password, TLS PEM)"
+  when: >-
+    (hostvars['localhost'].rgw_keystone_url | default('') | length == 0) or
+    (hostvars['localhost'].rgw_swift_password | default('') | length == 0) or
+    (hostvars['localhost'].rgw_ssl_pem | default('') | length == 0)
+
+- name: Load prep facts from localhost
+  no_log: true
+  set_fact:
+    rgw_keystone_url: "{{ hostvars['localhost'].rgw_keystone_url }}"
+    rgw_swift_password: "{{ hostvars['localhost'].rgw_swift_password }}"
+    rgw_ssl_pem: "{{ hostvars['localhost'].rgw_ssl_pem }}"
+
+- name: Ensure workdir on Ceph admin
+  file:
+    path: "{{ rgw_remote_workdir }}"
+    state: directory
+    mode: "0700"

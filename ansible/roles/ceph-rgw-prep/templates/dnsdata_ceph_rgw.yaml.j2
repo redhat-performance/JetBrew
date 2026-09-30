@@ -1,0 +1,17 @@
+apiVersion: network.openstack.org/v1beta1
+kind: DNSData
+metadata:
+  labels:
+    component: ceph-storage
+    service: ceph
+  name: {{ rgw_dnsdata_name }}
+  namespace: {{ openstack_namespace }}
+spec:
+  dnsDataLabelSelectorValue: dnsdata
+  hosts:
+    - hostnames:
+        - {{ rgw_internal_hostname }}
+      ip: {{ rgw_storage_vip }}
+    - hostnames:
+        - {{ rgw_external_hostname }}
+      ip: {{ rgw_external_vip }}

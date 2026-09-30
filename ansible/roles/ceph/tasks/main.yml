@@ -17,48 +17,57 @@
   set_fact:
     current_node_info: "{{ (hostvars['localhost']['ocp_inventory']['content'] | from_json).nodes | selectattr('name', 'equalto', inventory_hostname) | first }}"
 
-- name: Get storage MAC address for interface detection
-  set_fact:
-    storage_mac: "{{ current_node_info.mac[storage_network_nic_num | int - 1] }}"
+- name: Detect storage interface from storage_network_nic_num
+  include_tasks: includes/detect_iface.yml
+  vars:
+    nic_num: "{{ storage_network_nic_num }}"
+    iface_fact: storage_iface
 
-- name: Detect storage interface name from MAC address
-  shell: |
-    for iface in $(ls /sys/class/net/); do
-      if [ -f /sys/class/net/$iface/address ]; then
-        mac=$(cat /sys/class/net/$iface/address)
-        if [ "$mac" = "{{ storage_mac }}" ]; then
-          echo $iface
-          break
-        fi
-      fi
-    done
-  register: detected_storage_iface
-  failed_when: detected_storage_iface.stdout == ""
+- name: Detect storage management interface from storage_mgmt_network_nic_num
+  include_tasks: includes/detect_iface.yml
+  vars:
+    nic_num: "{{ storage_mgmt_network_nic_num }}"
+    iface_fact: storage_mgmt_iface
 
-- name: Set storage interface variables
-  set_fact:
-    storage_iface: "{{ detected_storage_iface.stdout }}"
-    storage_mgmt_iface: "{{ detected_storage_iface.stdout }}"
+- name: Detect external interface from external_network_nic_num
+  include_tasks: includes/detect_iface.yml
+  vars:
+    nic_num: "{{ external_network_nic_num }}"
+    iface_fact: external_iface
+
+- name: Detect internalapi interface from internalapi_network_nic_num
+  include_tasks: includes/detect_iface.yml
+  vars:
+    nic_num: "{{ internalapi_network_nic_num }}"
+    iface_fact: internalapi_iface
 
 - name: Set host index
   set_fact:
     host_index: "{{ groups['ceph_nodes'].index(inventory_hostname) }}"
 
-- name: Calculate storage and storage management network IPs and prefixes
+- name: Calculate storage, storage management, external, and internalapi IPs and prefixes
   set_fact:
     storage_ip: "{{ storage_network.split('/')[0].split('.')[:-1] | join('.') }}.{{ ip_offset + host_index | int }}"
     storage_mgmt_ip: "{{ storage_mgmt_network.split('/')[0].split('.')[:-1] | join('.') }}.{{ ip_offset + host_index | int }}"
+    external_ip: "{{ external_network.split('/')[0].split('.')[:-1] | join('.') }}.{{ ip_offset + host_index | int }}"
+    internalapi_ip: "{{ internalapi_network.split('/')[0].split('.')[:-1] | join('.') }}.{{ ip_offset + host_index | int }}"
     storage_network_prefix: "{{ storage_network.split('/')[1] }}"
     storage_mgmt_network_prefix: "{{ storage_mgmt_network.split('/')[1] }}"
+    external_network_prefix: "{{ external_network.split('/')[1] }}"
+    internalapi_network_prefix: "{{ internalapi_network.split('/')[1] }}"
 
-- name: Display assigned storage IPs
+- name: Display assigned interfaces and IPs
   debug:
     msg: |
       Host: {{ inventory_hostname }} (index {{ host_index }})
-      Storage IP: {{ storage_ip }}
-      Storage Mgmt IP: {{ storage_mgmt_ip }}
+      Storage iface: {{ storage_iface }} (nic {{ storage_network_nic_num }}) -> {{ storage_ip }}
+      Storage mgmt iface: {{ storage_mgmt_iface }} (nic {{ storage_mgmt_network_nic_num }}) -> {{ storage_mgmt_ip }}
+      External iface: {{ external_iface }} (nic {{ external_network_nic_num }}) -> {{ external_ip }}
+      Internalapi iface: {{ internalapi_iface }} (nic {{ internalapi_network_nic_num }}) -> {{ internalapi_ip }}
       Storage Network: {{ storage_network }}
       Storage Mgmt Network: {{ storage_mgmt_network }}
+      External Network: {{ external_network }}
+      Internalapi Network: {{ internalapi_network }}
 
 - name: Ensure NetworkManager is running
   systemd:
@@ -70,6 +79,8 @@
   shell: |
     ip link set dev {{ storage_iface }} up
     ip link set dev {{ storage_mgmt_iface }} up
+    ip link set dev {{ external_iface }} up
+    ip link set dev {{ internalapi_iface }} up
 
 - name: Create storage VLAN interface
   shell: |
@@ -93,16 +104,58 @@
       ipv4.method manual
   ignore_errors: yes
 
-- name: Bring up storage and storage management VLAN interfaces
+- name: Create external VLAN interface
+  shell: |
+    nmcli connection add type vlan \
+      con-name {{ external_iface }}.{{ external_network_vlan_id }} \
+      ifname {{ external_iface }}.{{ external_network_vlan_id }} \
+      dev {{ external_iface }} \
+      id {{ external_network_vlan_id }} \
+      ip4 {{ external_ip }}/{{ external_network_prefix }} \
+      ipv4.method manual
+  ignore_errors: yes
+
+- name: Create internalapi VLAN interface
+  shell: |
+    nmcli connection add type vlan \
+      con-name {{ internalapi_iface }}.{{ internalapi_network_vlan_id }} \
+      ifname {{ internalapi_iface }}.{{ internalapi_network_vlan_id }} \
+      dev {{ internalapi_iface }} \
+      id {{ internalapi_network_vlan_id }} \
+      ip4 {{ internalapi_ip }}/{{ internalapi_network_prefix }} \
+      ipv4.method manual
+  ignore_errors: yes
+
+- name: Bring up storage, storage management, external, and internalapi VLAN interfaces
   shell: |
     nmcli connection up {{ storage_iface }}.{{ storage_network_vlan_id }}
     nmcli connection up {{ storage_mgmt_iface }}.{{ storage_mgmt_network_vlan_id }}
+    nmcli connection up {{ external_iface }}.{{ external_network_vlan_id }}
+    nmcli connection up {{ internalapi_iface }}.{{ internalapi_network_vlan_id }}
+
+- name: Verify external VLAN has expected address
+  shell: |
+    ip -4 -o addr show dev {{ external_iface }}.{{ external_network_vlan_id }} | awk '{print $4}' | grep -q "^{{ external_ip }}/"
+  register: external_vlan_addr_check
+  retries: 3
+  delay: 2
+  until: external_vlan_addr_check.rc == 0
+
+- name: Verify internalapi VLAN has expected address
+  shell: |
+    ip -4 -o addr show dev {{ internalapi_iface }}.{{ internalapi_network_vlan_id }} | awk '{print $4}' | grep -q "^{{ internalapi_ip }}/"
+  register: internalapi_vlan_addr_check
+  retries: 3
+  delay: 2
+  until: internalapi_vlan_addr_check.rc == 0
 
 - name: Store host information for cluster spec
   set_fact:
     host_info:
       hostname: "{{ inventory_hostname }}"
       storage_ip: "{{ storage_ip }}"
+      external_ip: "{{ external_ip }}"
+      internalapi_ip: "{{ internalapi_ip }}"
       host_index: "{{ host_index }}"
 
 # Admin-only tasks (runs on admin node)

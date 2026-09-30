@@ -1,0 +1,115 @@
+---
+- name: Wait for openstackclient pod
+  shell: |
+    oc wait -n {{ openstack_namespace }} pod/{{ openstackclient_pod }} \
+      --for=condition=Ready --timeout=300s
+  changed_when: false
+
+- name: Fetch SwiftPassword from osp-secret
+  no_log: true
+  shell: |
+    oc get secret {{ osp_secret_name }} -n {{ openstack_namespace }} \
+      -o jsonpath='{.data.{{ osp_swift_password_key }}}' | base64 -d
+  register: osp_swift_password_raw
+  changed_when: false
+  failed_when: osp_swift_password_raw.rc != 0 or osp_swift_password_raw.stdout | length == 0
+
+- name: Set swift password fact
+  no_log: true
+  set_fact:
+    rgw_swift_password: "{{ osp_swift_password_raw.stdout }}"
+
+- name: Fetch Keystone internal endpoint URL
+  shell: |
+    oc rsh -n {{ openstack_namespace }} {{ openstackclient_pod }} \
+      openstack endpoint list --service identity --interface internal -f value -c URL
+  register: keystone_internal_urls
+  changed_when: false
+  failed_when: keystone_internal_urls.rc != 0 or keystone_internal_urls.stdout_lines | length == 0
+
+- name: Fetch keystone-internal LoadBalancer IP for Ceph reachability
+  shell: |
+    oc -n {{ openstack_namespace }} get svc keystone-internal \
+      -o jsonpath='{.status.loadBalancer.ingress[0].ip}'
+  register: keystone_lb_ip
+  changed_when: false
+  failed_when: false
+
+- name: Set Keystone URL and RGW endpoint URL facts
+  set_fact:
+    rgw_keystone_url: >-
+      {{
+        ('https://' ~ (keystone_lb_ip.stdout | trim) ~ ':5000')
+        if (keystone_lb_ip.stdout | default('') | trim | length > 0)
+        else (keystone_internal_urls.stdout_lines[0] | trim)
+      }}
+    rgw_endpoint_public_url: "https://{{ rgw_external_hostname }}:{{ rgw_frontend_port }}/swift/v1/AUTH_%(tenant_id)s"
+    rgw_endpoint_internal_url: "https://{{ rgw_internal_hostname }}:{{ rgw_frontend_port }}/swift/v1/AUTH_%(tenant_id)s"
+
+- name: Check object-store service
+  shell: |
+    oc rsh -n {{ openstack_namespace }} {{ openstackclient_pod }} \
+      openstack service show object-store
+  register: rgw_object_store_service
+  changed_when: false
+  failed_when: false
+
+- name: Create object-store service
+  shell: |
+    oc rsh -n {{ openstack_namespace }} {{ openstackclient_pod }} \
+      openstack service create \
+        --name swift \
+        --description "OpenStack Object Storage" \
+        object-store
+  when: rgw_object_store_service.rc != 0
+
+- name: Ensure swift user
+  no_log: true
+  shell: |
+    oc rsh -n {{ openstack_namespace }} {{ openstackclient_pod }} \
+      openstack user create --project service \
+        --password {{ rgw_swift_password | quote }} \
+        --or-show swift
+  changed_when: false
+
+- name: Ensure swiftoperator role
+  shell: |
+    oc rsh -n {{ openstack_namespace }} {{ openstackclient_pod }} \
+      openstack role create --or-show swiftoperator
+  changed_when: false
+
+- name: Ensure ResellerAdmin role
+  shell: |
+    oc rsh -n {{ openstack_namespace }} {{ openstackclient_pod }} \
+      openstack role create --or-show ResellerAdmin
+  changed_when: false
+
+- name: Ensure swift member role on service project
+  shell: |
+    oc rsh -n {{ openstack_namespace }} {{ openstackclient_pod }} \
+      openstack role add --user swift --project service member
+  changed_when: false
+
+- name: Ensure swift admin role on service project
+  shell: |
+    oc rsh -n {{ openstack_namespace }} {{ openstackclient_pod }} \
+      openstack role add --user swift --project service admin
+  changed_when: false
+
+- name: Ensure admin swiftoperator role on admin project
+  shell: |
+    oc rsh -n {{ openstack_namespace }} {{ openstackclient_pod }} \
+      openstack role add --project admin --user admin swiftoperator
+  changed_when: false
+
+- name: Ensure object-store public endpoint
+  include_tasks: ensure_endpoint.yml
+  vars:
+    rgw_endpoint_interface: public
+    rgw_endpoint_url: "{{ rgw_endpoint_public_url }}"
+
+- name: Ensure object-store internal endpoint
+  include_tasks: ensure_endpoint.yml
+  vars:
+    rgw_endpoint_interface: internal
+    rgw_endpoint_url: "{{ rgw_endpoint_internal_url }}"

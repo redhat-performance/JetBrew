@@ -1,0 +1,14 @@
+---
+- name: Get mon-labeled Ceph hosts
+  shell: |
+    cephadm shell -- ceph orch host ls 2>/dev/null \
+      | grep mon \
+      | awk '{print $1}' \
+      | head -n {{ rgw_placement_count | int }}
+  register: rgw_placement
+  changed_when: false
+  failed_when: rgw_placement.stdout_lines | length == 0
+
+- name: Set RGW placement hosts
+  set_fact:
+    rgw_placement_hosts: "{{ rgw_placement.stdout_lines }}"
