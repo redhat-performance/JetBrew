@@ -2,8 +2,6 @@ cloud: cloud40
 lab: scalelab #scalelab/performancelab
 
 # QUADS API token for authenticated inventory download (required)
-# Generate a qat_ token from your QUADS profile page or via POST /api/v3/tokens/<email>/
-# Token user must be cloud owner, cc-user, or admin for this cloud — otherwise download returns 403
 quads_api_token: ""
 
 # QUADS server hostnames per lab (replace with actual hostnames)
