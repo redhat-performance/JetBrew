@@ -30,7 +30,7 @@ All playbooks require `ansible/group_vars/all.yml` to be configured (copy from `
 
 The main playbook runs on `localhost` with `ocp_environment` (KUBECONFIG) set, executing roles in order:
 
-1. **bootstrap** — Clones the `architecture` repo to `dt_path`, installs Kustomize, downloads OCP inventory from the lab, enables IP forwarding, optionally sets up observability operator
+1. **bootstrap** — Clones the `architecture` repo to `dt_path`, installs Kustomize, downloads OCP inventory from the lab (with QUADS 3+ Bearer token auth when needed), enables IP forwarding, optionally sets up observability operator
 2. **values-prep** — Discovers OCP node names/IPs/MACs, sets up SSH, finds network interfaces by MAC address, identifies common disks across nodes, renders Jinja2 templates (NNCP, service values, LVMS, kustomization.yaml) into the architecture repo
 3. **values-prep-dp** — Prepares EDPM (External Data Plane Management) nodeset values for compute nodes, renders dataplane templates
 4. **lvms** — Applies LVMS (Local Volume Manager Storage) CRs via Kustomize
@@ -51,12 +51,14 @@ Templates are in:
 ### Key Variables (`ansible/group_vars/all.yml`)
 
 - `cloud` / `lab` — Scale Lab cloud identifier and lab type
+- `quads_api_token` — QUADS API token for authenticated inventory download (required)
 - `compute_count` — Number of compute nodes
 - `ssh_password` / `ssh_username` / `ssh_key_file` — Baremetal node access
 - `ctlplane_start_ip` — Control plane IP allocation start
 - `ocp_environment.KUBECONFIG` — Path to kubeconfig
 - `ceph_backend` — Enable Ceph storage integration (requires prior `deploy_external_ceph.yaml` run)
 - `dt_path` — Where the architecture repo is cloned
+- `ocp_inventory_local_path` — Optional local inventory file (skips QUADS download and token requirement)
 
 ### Deletion (`ansible/roles/cleanup-openstack`)
 

@@ -42,6 +42,9 @@ cloud: cloud40                    # Cloud identifier (e.g., cloud40)
 lab: scalelab                     # Lab type: scalelab or performancelab
 compute_count: 1                  # Number of compute nodes
 
+# QUADS API Token (required)
+quads_api_token: qat_xxxxx        # Generate from your QUADS profile page
+
 # SSH Configuration
 ssh_password: your-password       # SSH password for baremetal nodes
 ssh_username: cloud-admin         # SSH username for baremetal nodes
@@ -54,6 +57,8 @@ ctlplane_start_ip: 172.16.20.100  # Control plane start IP address
 ocp_environment:
   KUBECONFIG: /root/mno/kubeconfig  # Path to kubeconfig file
 ```
+
+> **QUADS Authentication:** Scale Lab and Performance Lab environments require an API token to download OCP inventory files.
 
 ### Optional Variables
 
