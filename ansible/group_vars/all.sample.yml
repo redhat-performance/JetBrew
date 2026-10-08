@@ -4,7 +4,7 @@ lab: scalelab #scalelab/performancelab
 # QUADS API token for authenticated inventory download (required)
 quads_api_token: ""
 
-# QUADS server hostnames per lab (replace with actual hostnames)
+# QUADS server URLs or hostnames per lab
 quads_hosts:
   scalelab: quads.example.com
   performancelab: quads.example.com

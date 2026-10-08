@@ -37,9 +37,16 @@
     - not (local_inventory_file.stat.exists | default(false))
     - quads_api_token is not defined or quads_api_token == None or quads_api_token | string | length == 0
 
+- name: Normalize QUADS host to a full URL
+  set_fact:
+    quads_base_url: "{{ quads_host if quads_host is match('^https?://') else 'https://' + quads_host }}"
+  when:
+    - not (local_inventory_file.stat.exists | default(false))
+    - quads_host is defined
+
 - name: Download OCP inventory file
   uri:
-    url: "https://{{ quads_host }}/instack/{{ cloud }}_ocpinventory.json"
+    url: "{{ quads_base_url }}/instack/{{ cloud }}_ocpinventory.json"
     return_content: true
     validate_certs: false
     headers:
@@ -47,7 +54,7 @@
   register: ocpinventory_download
   when:
     - not (local_inventory_file.stat.exists | default(false))
-    - quads_host is defined
+    - quads_base_url is defined
   no_log: true
 
 - name: Set fact for OCP inventory (from download)
