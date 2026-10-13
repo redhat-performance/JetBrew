@@ -1,0 +1,98 @@
+---
+- name: Render DNSData for RGW VIPs
+  template:
+    src: dnsdata_ceph_rgw.yaml.j2
+    dest: /tmp/jetbrew-ceph-rgw-dnsdata.yaml
+    mode: "0644"
+
+- name: Apply DNSData for RGW VIPs
+  shell: |
+    oc apply -f /tmp/jetbrew-ceph-rgw-dnsdata.yaml
+
+- name: Wait for DNSData Ready
+  shell: |
+    oc wait -n {{ openstack_namespace }} dnsdata/{{ rgw_dnsdata_name }} \
+      --for=jsonpath='{.status.conditions[?(@.type=="Ready")].status}'=True \
+      --timeout=300s
+  changed_when: false
+
+- name: Get dnsmasq-dns ClusterIP
+  shell: |
+    oc -n {{ openstack_namespace }} get svc dnsmasq-dns -o jsonpath='{.spec.clusterIP}'
+  register: rgw_dnsmasq_cluster_ip
+  changed_when: false
+  failed_when: rgw_dnsmasq_cluster_ip.stdout | length == 0
+
+- name: Ensure CoreDNS forwards ceph.local to dnsmasq-dns
+  shell: |
+    python3 - <<'PY'
+    import json
+    import subprocess
+    import sys
+
+    zone = "{{ rgw_dns_zone }}"
+    upstream = "{{ rgw_dnsmasq_cluster_ip.stdout | trim }}:53"
+    desired = {
+        "name": "ceph",
+        "zones": [zone],
+        "forwardPlugin": {"policy": "Random", "upstreams": [upstream]},
+    }
+
+    raw = subprocess.check_output(
+        ["oc", "-n", "openshift-dns", "get", "dns.operator/default", "-o", "json"],
+        text=True,
+    )
+    dns = json.loads(raw)
+    servers = list(dns.get("spec", {}).get("servers") or [])
+    changed = False
+    found = False
+    for i, server in enumerate(servers):
+        if zone in (server.get("zones") or []) or server.get("name") == "ceph":
+            found = True
+            if server != desired:
+                servers[i] = desired
+                changed = True
+            break
+    if not found:
+        servers.append(desired)
+        changed = True
+
+    if not changed:
+        print("unchanged")
+        sys.exit(0)
+
+    patch = {"spec": {"servers": servers}}
+    subprocess.run(
+        ["oc", "-n", "openshift-dns", "patch", "dns.operator/default", "--type=merge", "-p", json.dumps(patch)],
+        check=True,
+    )
+    print("updated")
+    PY
+  register: rgw_coredns_forward
+  changed_when: "'updated' in rgw_coredns_forward.stdout"
+
+- name: Render Certificate for RGW hostnames
+  template:
+    src: certificate_ceph_rgw.yaml.j2
+    dest: /tmp/jetbrew-ceph-rgw-certificate.yaml
+    mode: "0644"
+
+- name: Apply Certificate for RGW hostnames
+  shell: |
+    oc apply -f /tmp/jetbrew-ceph-rgw-certificate.yaml
+
+- name: Wait for RGW Certificate Ready
+  shell: |
+    oc wait -n {{ openstack_namespace }} certificate/{{ rgw_certificate_name }} \
+      --for=condition=Ready --timeout=300s
+  changed_when: false
+
+- name: Wait for RGW TLS secret
+  shell: |
+    oc -n {{ openstack_namespace }} get secret {{ rgw_certificate_secret }} \
+      -o jsonpath='{.data.tls\.crt}' | grep -q .
+  register: rgw_tls_secret
+  retries: 30
+  delay: 5
+  until: rgw_tls_secret.rc == 0
+  changed_when: false

@@ -1,0 +1,15 @@
+apiVersion: cert-manager.io/v1
+kind: Certificate
+metadata:
+  name: {{ rgw_certificate_name }}
+  namespace: {{ openstack_namespace }}
+spec:
+  duration: {{ rgw_certificate_duration }}
+  issuerRef:
+    group: cert-manager.io
+    kind: Issuer
+    name: {{ rgw_certificate_issuer }}
+  secretName: {{ rgw_certificate_secret }}
+  dnsNames:
+    - {{ rgw_internal_hostname }}
+    - {{ rgw_external_hostname }}

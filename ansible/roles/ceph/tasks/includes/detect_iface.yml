@@ -1,0 +1,22 @@
+---
+- name: "Get MAC for nic {{ nic_num }} ({{ iface_fact }})"
+  set_fact:
+    _detect_mac: "{{ current_node_info.mac[nic_num | int - 1] }}"
+
+- name: "Detect interface name for {{ iface_fact }} (MAC {{ _detect_mac }})"
+  shell: |
+    for iface in $(ls /sys/class/net/); do
+      if [ -f /sys/class/net/$iface/address ]; then
+        mac=$(cat /sys/class/net/$iface/address)
+        if [ "$mac" = "{{ _detect_mac }}" ]; then
+          echo $iface
+          break
+        fi
+      fi
+    done
+  register: _detected_iface
+  failed_when: _detected_iface.stdout == ""
+
+- name: "Set {{ iface_fact }}"
+  set_fact:
+    "{{ iface_fact }}": "{{ _detected_iface.stdout }}"

@@ -1,0 +1,9 @@
+---
+- name: Load prep facts and TLS PEM
+  include_tasks: includes/load_prep.yml
+
+- name: Select RGW placement hosts
+  include_tasks: includes/placement.yml
+
+- name: Configure Keystone and apply RGW orch
+  include_tasks: includes/apply.yml

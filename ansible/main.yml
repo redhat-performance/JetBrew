@@ -30,5 +30,12 @@
     - lvms
     - common-osp
     - controlplane
+    - { role: ceph-rgw-prep, when: ceph_backend | default(false) | bool }
     - dataplane
     - post
+
+- name: Deploy Ceph RGW for object storage
+  hosts: ceph_admin
+  gather_facts: false
+  roles:
+    - { role: ceph-rgw, when: ceph_backend | default(false) | bool }

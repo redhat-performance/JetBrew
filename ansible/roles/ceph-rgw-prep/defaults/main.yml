@@ -1,0 +1,17 @@
+---
+openstack_namespace: openstack
+openstackclient_pod: openstackclient
+osp_secret_name: osp-secret
+osp_swift_password_key: SwiftPassword
+keystone_region: regionOne
+rgw_storage_vip: 172.20.0.24
+rgw_external_vip: 172.19.0.24
+rgw_frontend_port: 8080
+rgw_dns_zone: ceph.local
+rgw_internal_hostname: ceph-rgw-internal-vip.ceph.local
+rgw_external_hostname: ceph-rgw-external-vip.ceph.local
+rgw_dnsdata_name: ceph-storage
+rgw_certificate_name: cert-ceph-rgw
+rgw_certificate_secret: cert-ceph-rgw
+rgw_certificate_issuer: rootca-public
+rgw_certificate_duration: 43800h0m0s

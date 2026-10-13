@@ -1,0 +1,36 @@
+---
+service_type: rgw
+service_id: {{ rgw_service_id }}
+service_name: rgw.{{ rgw_service_id }}
+placement:
+  hosts:
+{% for h in rgw_placement_hosts %}
+  - {{ h }}
+{% endfor %}
+networks:
+- {{ storage_network }}
+spec:
+  rgw_frontend_port: {{ rgw_backend_port }}
+  rgw_realm: {{ rgw_realm }}
+  rgw_zone: {{ rgw_zone }}
+  ssl: true
+  rgw_frontend_ssl_certificate: |
+{{ rgw_ssl_pem | indent(4, first=True) }}
+---
+service_type: ingress
+service_id: {{ rgw_ingress_service_id }}
+service_name: ingress.{{ rgw_ingress_service_id }}
+placement:
+  count: {{ rgw_ingress_count }}
+spec:
+  backend_service: rgw.{{ rgw_service_id }}
+  frontend_port: {{ rgw_frontend_port }}
+  monitor_port: {{ rgw_ingress_monitor_port }}
+  virtual_ips_list:
+  - {{ rgw_storage_vip }}/{{ storage_network_prefix }}
+  - {{ rgw_external_vip }}/{{ external_network_prefix }}
+  virtual_interface_networks:
+  - {{ storage_network }}
+  - {{ external_network }}
+  ssl_cert: |
+{{ rgw_ssl_pem | indent(4, first=True) }}

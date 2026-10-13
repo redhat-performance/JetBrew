@@ -59,7 +59,7 @@ data:
     default:
       replicas: 1
   swift:
-    enabled: true
+    enabled: {{ false if (ceph_backend | default(false) | bool) else true }}
   telemetry:
     enabled: {{ telemetry | default(true) }}
     template:

@@ -10,7 +10,16 @@ ceph_health_check_delay: 60
 # Network configuration
 storage_network_vlan_id: 20
 storage_mgmt_network_vlan_id: 21
+external_network_vlan_id: 19
+internalapi_network_vlan_id: 17
 storage_network: 172.20.0.0/16
 storage_mgmt_network: 172.21.0.0/16
+external_network: 172.19.0.0/16
+internalapi_network: 172.17.0.0/16
 ip_offset: 10
+
+# 1-based indexes into ocp inventory node.mac[]
 storage_network_nic_num: 4
+storage_mgmt_network_nic_num: "{{ storage_network_nic_num }}"
+external_network_nic_num: 4
+internalapi_network_nic_num: 3

@@ -1,0 +1,16 @@
+---
+- name: Configure DNS and TLS for external RGW
+  include_tasks: includes/tls_prep.yml
+
+- name: Ensure external RGW VIP hostname in /etc/hosts
+  ansible.builtin.lineinfile:
+    path: /etc/hosts
+    regexp: '.*\b{{ rgw_external_hostname | regex_escape }}\b.*'
+    line: "{{ rgw_external_vip }} {{ rgw_external_hostname }}"
+    state: present
+
+- name: Export TLS materials for Ceph RGW deploy
+  include_tasks: includes/export_tls.yml
+
+- name: Prepare Keystone for external RGW
+  include_tasks: includes/keystone_prep.yml
