@@ -62,6 +62,7 @@ data:
           sudo dnf install python3-pyroute2 --disableexcludes=all --disablerepo="*" --enablerepo="rhoso-18.0-rhel-9-nightly-compose" -y
         timesync_ntp_servers:
           - hostname: pool.ntp.org
+        edpm_enable_chassis_gw: true
         # edpm_network_config
         # These vars are edpm_network_config role vars
         edpm_network_config_hide_sensitive_logs: false
